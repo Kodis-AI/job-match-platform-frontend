@@ -39,3 +39,25 @@ yarn-error.*
 # generated native folders
 /ios
 /android
+
+# MCP / configuración local del editor (puede contener claves)
+.vscode/mcp.json
+.mcp.json
+
+# Variables de entorno (se permite la plantilla .env.example)
+.env
+.env.*
+!.env.example
+
+# Credenciales y claves
+*.keystore
+*service-account*.json
+credentials*.json
+secrets*.json
+
+# Configuración local de Claude Code (personal)
+.claude/settings.local.json
+
+# Python (cachés generadas por los scripts del skill)
+__pycache__/
+*.py[cod]
