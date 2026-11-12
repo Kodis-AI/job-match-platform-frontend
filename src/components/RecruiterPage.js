@@ -26,24 +26,32 @@ export function RecruiterPage({ eyebrow, title, description, action, children })
       >
         <View style={[styles.topBar, { paddingTop: insets.top + 12 }]}>
           <View style={[styles.topBarInner, isCompact && styles.topBarCompact]}>
-            <View style={styles.brandGroup}>
-              <View style={styles.brandMark}>
-                <Text style={styles.brandMarkText}>M</Text>
+            {/* En compacto marca y sesión comparten la primera fila y el selector baja a la segunda. */}
+            <View style={[styles.brandRow, isCompact && styles.brandRowCompact]}>
+              <View style={styles.brandGroup}>
+                <View style={styles.brandMark}>
+                  <Text style={styles.brandMarkText}>M</Text>
+                </View>
+                <View style={styles.brandCopy}>
+                  <Text style={styles.brandName} numberOfLines={1}>
+                    TalentMatch AI
+                  </Text>
+                  <Text style={styles.brandCaption} numberOfLines={1}>
+                    ENTERPRISE TALENT INTELLIGENCE
+                  </Text>
+                </View>
               </View>
-              <View>
-                <Text style={styles.brandName}>TalentMatch AI</Text>
-                <Text style={styles.brandCaption}>ENTERPRISE TALENT INTELLIGENCE</Text>
+              {isCompact ? <SessionControls compact /> : null}
+            </View>
+            {!isSettingsRoute ? <WorkspaceModeSwitcher compact={isCompact} /> : null}
+            {!isCompact ? (
+              <View style={styles.profileGroup}>
+                {!isSettingsRoute && isWide && (
+                  <Badge label="NLP Pipeline · Demo" tone="success" icon="circle-check" />
+                )}
+                <SessionControls />
               </View>
-            </View>
-            {/* En compacto la sesión queda junto a la marca y el selector baja a su propia fila. */}
-            {!isSettingsRoute && !isCompact ? <WorkspaceModeSwitcher /> : null}
-            <View style={styles.profileGroup}>
-              {!isSettingsRoute && isWide && (
-                <Badge label="NLP Pipeline · Demo" tone="success" icon="circle-check" />
-              )}
-              <SessionControls compact={isCompact} />
-            </View>
-            {!isSettingsRoute && isCompact ? <WorkspaceModeSwitcher compact /> : null}
+            ) : null}
           </View>
         </View>
 
@@ -219,7 +227,16 @@ const useStyles = makeStyles((t) => {
       gap: spacing.sm,
     },
     topBarCompact: { alignItems: 'center', flexWrap: 'wrap' },
-    brandGroup: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
+    brandRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, flexShrink: 1 },
+    brandRowCompact: { width: '100%', justifyContent: 'space-between' },
+    brandGroup: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: spacing.sm,
+      flexShrink: 1,
+      minWidth: 0,
+    },
+    brandCopy: { flexShrink: 1, minWidth: 0 },
     modeSwitcher: {
       flexDirection: 'row',
       alignItems: 'center',
