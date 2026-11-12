@@ -5,7 +5,7 @@ import { OpenSans_700Bold } from '@expo-google-fonts/open-sans/700Bold';
 import { Poppins_600SemiBold } from '@expo-google-fonts/poppins/600SemiBold';
 import { Poppins_700Bold } from '@expo-google-fonts/poppins/700Bold';
 
-// Fuentes que se cargan en App.js con useFonts().
+// Fuentes que se cargan en src/app/_layout.js con useFonts().
 export const fontAssets = {
   Poppins_600SemiBold,
   Poppins_700Bold,

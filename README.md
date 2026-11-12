@@ -119,7 +119,7 @@ job-match-platform-frontend/
 
 Los archivos de `src/app/` solo reexportan pantallas de `src/screens/`. Así la lógica de UI queda separada del enrutado, y el código que no es una ruta nunca vive dentro de `src/app/`.
 
-> `App.js` e `index.js` en la raíz son restos de la plantilla inicial. El punto de entrada real es `expo-router/entry` (campo `main` de `package.json`).
+> El punto de entrada es `expo-router/entry` (campo `main` de `package.json`); no hay `App.js`.
 
 ### Navegación y protección de rutas
 
