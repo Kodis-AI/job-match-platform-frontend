@@ -4,89 +4,80 @@ import { makeStyles, useTheme } from '../theme';
 import { Icon } from './Icon';
 
 /** Tarjeta de métrica con porcentaje y barra de progreso accesible. */
-export function ScoreCard({ title, score, detail, icon, stacked }) {
+export function ScoreCard({ title, score, detail, icon, tone = 'primary' }) {
   const styles = useStyles();
   const { colors } = useTheme();
+  const toneColor = {
+    primary: colors.primary,
+    success: colors.success,
+    accent: colors.accent,
+    warning: colors.warning,
+  }[tone];
+
   return (
     <View
       accessible
       accessibilityLabel={`${title}: ${score} por ciento. ${detail}`}
-      style={[styles.card, stacked && styles.cardStacked]}
+      style={styles.card}
     >
       <View style={styles.top}>
         <View style={styles.iconBox}>
-          <Icon name={icon} size="md" color={colors.onPrimarySoft} />
+          <Icon name={icon} size="sm" color={toneColor} />
         </View>
-        <Text style={styles.value}>{score}%</Text>
+        <Text style={styles.title} numberOfLines={1}>
+          {title}
+        </Text>
+        <Text style={[styles.value, { color: toneColor }]}>{score}%</Text>
       </View>
-      <Text style={styles.title}>{title}</Text>
+      <View style={styles.progressTrack}>
+        <View style={[styles.progressFill, { width: `${score}%`, backgroundColor: toneColor }]} />
+      </View>
       <Text style={styles.detail}>{detail}</Text>
-      <View
-        style={styles.track}
-        accessibilityRole="progressbar"
-        accessibilityValue={{ min: 0, max: 100, now: score }}
-      >
-        <View style={[styles.fill, { width: `${score}%` }]} />
-      </View>
     </View>
   );
 }
 
 const useStyles = makeStyles((t) => ({
   card: {
-    flexBasis: '44%',
-    flexGrow: 1,
+    justifyContent: 'center',
     minWidth: 0,
-    backgroundColor: t.colors.card,
-    borderWidth: 1,
-    borderColor: t.colors.border,
-    borderRadius: t.radii.md,
-    padding: t.spacing.md,
-    ...t.shadows.sm,
-  },
-  cardStacked: {
-    width: '100%',
-    flexBasis: 'auto',
-    flexGrow: 0,
+    paddingVertical: t.spacing.xs,
+    borderBottomWidth: 1,
+    borderBottomColor: t.colors.borderSubtle,
   },
   top: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: t.spacing.sm,
+    gap: t.spacing.xs,
   },
   iconBox: {
-    width: 36,
-    height: 36,
-    borderRadius: t.radii.sm,
-    backgroundColor: t.colors.primarySoft,
+    width: 18,
     alignItems: 'center',
-    justifyContent: 'center',
   },
   value: {
-    ...t.typography.h2,
-    color: t.colors.foreground,
+    ...t.typography.captionStrong,
+    marginLeft: 'auto',
   },
   title: {
-    ...t.typography.subtitle,
+    ...t.typography.captionStrong,
     color: t.colors.foreground,
-    marginBottom: t.spacing.xxs,
+    flex: 1,
+    minWidth: 0,
   },
   detail: {
-    ...t.typography.bodySm,
+    ...t.typography.caption,
     color: t.colors.mutedForeground,
-    flexGrow: 1,
+    marginTop: t.spacing.xxs,
   },
-  track: {
-    height: 6,
+  progressTrack: {
+    height: 5,
     backgroundColor: t.colors.muted,
     borderRadius: t.radii.full,
     overflow: 'hidden',
-    marginTop: t.spacing.sm,
+    marginTop: t.spacing.xxs,
   },
-  fill: {
+  progressFill: {
     height: '100%',
-    backgroundColor: t.colors.secondary,
     borderRadius: t.radii.full,
   },
 }));

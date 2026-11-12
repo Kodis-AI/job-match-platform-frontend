@@ -1,4 +1,4 @@
-import { createContext, useContext, useMemo } from 'react';
+import { createContext, useContext, useMemo, useState } from 'react';
 import { StyleSheet, useColorScheme } from 'react-native';
 
 import { palettes } from './colors';
@@ -36,8 +36,13 @@ function buildTheme(scheme) {
 const ThemeContext = createContext(buildTheme('light'));
 
 export function ThemeProvider({ children }) {
-  const scheme = useColorScheme() === 'dark' ? 'dark' : 'light';
-  const theme = useMemo(() => buildTheme(scheme), [scheme]);
+  const systemScheme = useColorScheme() === 'dark' ? 'dark' : 'light';
+  const [appearance, setAppearance] = useState('system');
+  const scheme = appearance === 'system' ? systemScheme : appearance;
+  const theme = useMemo(
+    () => ({ ...buildTheme(scheme), appearance, setAppearance }),
+    [scheme, appearance],
+  );
   return <ThemeContext.Provider value={theme}>{children}</ThemeContext.Provider>;
 }
 

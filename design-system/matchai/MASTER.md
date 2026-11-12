@@ -19,24 +19,24 @@
 
 | Role | Hex | CSS Variable |
 |------|-----|--------------|
-| Primary | `#1E3A5F` | `--color-primary` |
+| Primary | `#4F46E5` | `--color-primary` |
 | On Primary | `#FFFFFF` | `--color-on-primary` |
-| Secondary | `#2563EB` | `--color-secondary` |
+| Secondary | `#0284C7` | `--color-secondary` |
 | On Secondary | `#FFFFFF` | `--color-on-secondary` |
-| Accent/CTA | `#16A34A` | `--color-accent` |
-| On Accent/CTA | `#000000` | `--color-on-accent` |
-| Background | `#F8FAFC` | `--color-background` |
-| Foreground | `#0F172A` | `--color-foreground` |
+| Accent/CTA | `#4F46E5` | `--color-accent` |
+| On Accent/CTA | `#FFFFFF` | `--color-on-accent` |
+| Background | `#F8F7FF` | `--color-background` |
+| Foreground | `#17172A` | `--color-foreground` |
 | Card | `#FFFFFF` | `--color-card` |
-| Card Foreground | `#0F172A` | `--color-card-foreground` |
-| Muted | `#E9EEF5` | `--color-muted` |
-| Muted Foreground | `#475569` | `--color-muted-foreground` |
-| Border | `#CBD5E1` | `--color-border` |
+| Card Foreground | `#17172A` | `--color-card-foreground` |
+| Muted | `#EEF0FF` | `--color-muted` |
+| Muted Foreground | `#5B6078` | `--color-muted-foreground` |
+| Border | `#D9DDF0` | `--color-border` |
 | Destructive | `#DC2626` | `--color-destructive` |
 | On Destructive | `#FFFFFF` | `--color-on-destructive` |
-| Ring | `#1E3A5F` | `--color-ring` |
+| Ring | `#4F46E5` | `--color-ring` |
 
-**Color Notes:** Professional navy + section accent + success green
+**Color Notes:** Indigo/lavender brand + blue secondary accent + semantic success green
 
 ### Typography
 
@@ -82,8 +82,8 @@
 ```css
 /* Primary Button */
 .btn-primary {
-  background: #16A34A;
-  color: #000000;
+  background: #4F46E5;
+  color: #FFFFFF;
   padding: 12px 24px;
   border-radius: 8px;
   font-weight: 600;
@@ -99,8 +99,8 @@
 /* Secondary Button */
 .btn-secondary {
   background: transparent;
-  color: #1E3A5F;
-  border: 2px solid #1E3A5F;
+  color: #4338CA;
+  border: 2px solid #4338CA;
   padding: 12px 24px;
   border-radius: 8px;
   font-weight: 600;
@@ -127,6 +127,12 @@
 }
 ```
 
+### Compatibility Results
+
+- Place the overall match score in a soft primary/lavender card with a circular progress ring and centered percentage.
+- On wide screens, show the overall score beside a vertical list of competency rows; stack them on narrow screens.
+- Each competency row includes its label, score, progress bar, and a short explanation. Use semantic palette tokens for row colors; reserve green for success states.
+
 ### Inputs
 
 ```css
@@ -139,9 +145,9 @@
 }
 
 .input:focus {
-  border-color: #1E3A5F;
+  border-color: #4F46E5;
   outline: none;
-  box-shadow: 0 0 0 3px #1E3A5F20;
+  box-shadow: 0 0 0 3px #4F46E520;
 }
 ```
 
@@ -236,24 +242,24 @@ const useStyles = makeStyles((t) => ({
 ### Tokens oscuros (derivados; contraste verificado ≥ 4.5:1 en texto)
 | Token | Claro | Oscuro |
 |-------|-------|--------|
-| background | `#F8FAFC` | `#0B1220` |
-| card | `#FFFFFF` | `#111A2E` |
-| foreground | `#0F172A` | `#F1F5F9` |
-| muted / mutedForeground | `#E9EEF5` / `#475569` | `#1E293B` / `#94A3B8` |
-| border / inputBorder | `#CBD5E1` / `#64748B` | `#334155` / `#64748B` |
-| primary / onPrimary | `#1E3A5F` / `#FFFFFF` | `#60A5FA` / `#0B1220` |
-| secondary / secondaryText | `#2563EB` / `#1D4ED8` | `#93C5FD` / `#93C5FD` |
-| accent / onAccent | `#16A34A` / `#000000` | `#22C55E` / `#000000` |
-| success (texto) | `#15803D` | `#4ADE80` |
+| background | `#F8F7FF` | `#11111F` |
+| card | `#FFFFFF` | `#1B1B2E` |
+| foreground | `#17172A` | `#F4F3FF` |
+| muted / mutedForeground | `#EEF0FF` / `#5B6078` | `#292940` / `#A7A8C2` |
+| border / inputBorder | `#D9DDF0` / `#9AA2BD` | `#41415D` / `#777894` |
+| primary / onPrimary | `#4F46E5` / `#FFFFFF` | `#A5A0FF` / `#17152F` |
+| secondary / secondaryText | `#0284C7` / `#0369A1` | `#38BDF8` / `#7DD3FC` |
+| accent / onAccent | `#4F46E5` / `#FFFFFF` | `#A5A0FF` / `#17152F` |
+| success (texto) | `#059669` | `#34D399` |
 | warning (texto) | `#B45309` | `#FBBF24` |
 | destructive | `#DC2626` | `#F87171` |
 
-> `accent` (#16A34A) **no** sirve como color de texto sobre blanco (3.3:1). Para texto de éxito usa `success`.
+> El verde se reserva para estados de éxito. Para acciones y textos de marca usa los tokens primary/accent.
 
 ### Roles de color
-- **primary (marino):** marca, encabezado, tarjeta "Match general", números de paso.
-- **secondary (azul):** enlaces, chips activos, barras de progreso, zonas de carga.
-- **accent (verde, texto negro):** solo CTA principales ("Evaluar compatibilidad", "Generar CV").
+- **primary (índigo):** marca, encabezado, tarjeta "Match general", números de paso y acciones principales.
+- **secondary (azul):** enlaces, chips activos, barras de progreso y zonas de carga.
+- **accent (índigo):** CTA principales ("Evaluar compatibilidad", "Generar CV").
 - **success / warning:** estados (Listo, Ausente, banner de resultado).
 
 ### Tipografía (React Native)

@@ -1,7 +1,8 @@
 import { useRef, useState } from 'react';
 import { StatusBar } from 'expo-status-bar';
-import { Pressable, ScrollView, Text, TextInput, View, useWindowDimensions } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import Svg, { Circle } from 'react-native-svg';
 
 import {
   Badge,
@@ -15,7 +16,9 @@ import {
   StepTitle,
   Suggestion,
 } from '../components';
+import { WorkspaceModeSwitcher } from '../components/RecruiterPage';
 import { makeStyles, useTheme } from '../theme';
+import { useWorkspaceLayout } from '../theme/useWorkspaceLayout';
 import { comingSoon } from '../utils/notify';
 
 const JOB_SAMPLES = [
@@ -36,24 +39,28 @@ const SCORES = [
     title: 'Habilidades técnicas',
     score: 88,
     icon: 'cpu',
+    tone: 'primary',
     detail: 'Fuerte coincidencia en Backend, AWS y bases de datos relacionales.',
   },
   {
     title: 'Experiencia y seniority',
     score: 80,
     icon: 'trending-up',
+    tone: 'success',
     detail: 'Cumples los 5+ años exigidos; perfil alineado a nivel Staff / Senior.',
   },
   {
     title: 'Palabras clave ATS',
     score: 92,
     icon: 'scan-search',
+    tone: 'accent',
     detail: 'Densidad léxica óptima sin detección de sobrecarga artificial.',
   },
   {
     title: 'Formación y certificaciones',
     score: 75,
     icon: 'graduation-cap',
+    tone: 'warning',
     detail: 'Grado validado; falta certificación Kubernetes formal.',
   },
 ];
@@ -64,10 +71,9 @@ export default function MatchScreen() {
   const styles = useStyles();
   const { colors, layout } = useTheme();
   const insets = useSafeAreaInsets();
-  const { width } = useWindowDimensions();
-  const isCompact = width < layout.breakpoints.compact;
-  const isWide = width >= layout.breakpoints.wide;
-  const isResultsWide = width >= layout.breakpoints.xwide;
+  const { isCompact, contentWidth } = useWorkspaceLayout();
+  const isWide = contentWidth >= layout.breakpoints.wide;
+  const isResultsWide = contentWidth >= 640;
 
   const scrollRef = useRef(null);
   const formY = useRef(0);
@@ -94,7 +100,7 @@ export default function MatchScreen() {
       >
         {/* Encabezado */}
         <View style={[styles.header, { paddingTop: insets.top }]}>
-          <View style={[styles.headerInner, isCompact && styles.headerInnerCompact]}>
+          <View style={[styles.headerInner, !isWide && styles.headerInnerCompact]}>
             <View style={styles.brandGroup}>
               <View style={styles.brandMark} aria-hidden accessibilityElementsHidden>
                 <Text style={styles.brandMarkText}>M</Text>
@@ -111,16 +117,11 @@ export default function MatchScreen() {
                 />
               )}
             </View>
+            <WorkspaceModeSwitcher compact={isCompact} />
             <View style={styles.headerActions}>
               {!isCompact && (
                 <Button label="Cómo funciona" variant="ghost" onPress={() => scrollTo(formY)} />
               )}
-              <Button
-                label="Nueva evaluación"
-                variant="primary"
-                iconLeft="plus"
-                onPress={() => scrollTo(formY)}
-              />
             </View>
           </View>
         </View>
@@ -278,6 +279,7 @@ export default function MatchScreen() {
             <SectionHeading
               overline="Resumen de compatibilidad"
               title="Diagnóstico integral de ajuste profesional"
+              stacked={isCompact}
             >
               <View style={styles.actionsRow}>
                 <Button
@@ -301,13 +303,38 @@ export default function MatchScreen() {
                 accessibilityLabel="Match general: 84 por ciento. Superas el umbral de corte automático ATS del 75 por ciento."
                 style={[styles.overallCard, isResultsWide && styles.overallCardWide]}
               >
-                <Overline style={styles.overallLabel}>Match general</Overline>
-                <Text style={styles.overallScore}>
-                  84<Text style={styles.percent}>%</Text>
-                </Text>
-                <View style={styles.overallTrack}>
-                  <View style={[styles.overallFill, { width: '84%' }]} />
-                  <View style={[styles.thresholdMark, { left: '75%' }]} />
+                <View
+                  style={[
+                    styles.overallRing,
+                    { width: Math.min(200, Math.max(140, contentWidth - 80)) },
+                  ]}
+                >
+                  <Svg width="100%" height="100%" viewBox="0 0 100 100">
+                    <Circle
+                      cx="50"
+                      cy="50"
+                      r="43"
+                      fill="none"
+                      stroke={colors.borderSubtle}
+                      strokeWidth="7"
+                    />
+                    <Circle
+                      cx="50"
+                      cy="50"
+                      r="43"
+                      fill="none"
+                      stroke={colors.primary}
+                      strokeWidth="7"
+                      strokeLinecap="round"
+                      strokeDasharray={`${2 * Math.PI * 43} ${2 * Math.PI * 43}`}
+                      strokeDashoffset={2 * Math.PI * 43 * 0.16}
+                      transform="rotate(-90 50 50)"
+                    />
+                  </Svg>
+                  <View style={styles.overallRingCenter}>
+                    <Text style={styles.overallScore}>84%</Text>
+                    <Overline style={styles.overallLabel}>Match general</Overline>
+                  </View>
                 </View>
                 <Text style={styles.overallText}>
                   Superas el umbral de corte automático ATS (75%) para la ronda de preselección
@@ -332,6 +359,7 @@ export default function MatchScreen() {
               overline="Próximos pasos"
               title="Plan de optimización recomendado"
               description="Acciones concretas y directas para elevar tu encaje del 84% al 96%."
+              stacked={isCompact}
             >
               <Button
                 label="Copiar sugerencias"
@@ -457,7 +485,7 @@ const useStyles = makeStyles((t) => {
     },
     headerInner: {
       width: '100%',
-      maxWidth: layout.maxWidth,
+      maxWidth: 1360,
       minHeight: 68,
       alignSelf: 'center',
       paddingHorizontal: spacing.lg,
@@ -466,7 +494,11 @@ const useStyles = makeStyles((t) => {
       justifyContent: 'space-between',
       gap: spacing.sm,
     },
-    headerInnerCompact: { minHeight: 60, paddingHorizontal: spacing.md },
+    headerInnerCompact: {
+      minHeight: 60,
+      paddingHorizontal: spacing.md,
+      flexWrap: 'wrap',
+    },
     brandGroup: { flexDirection: 'row', alignItems: 'center', flexShrink: 1 },
     brandMark: {
       width: 36,
@@ -485,7 +517,7 @@ const useStyles = makeStyles((t) => {
     // Contenido
     content: {
       width: '100%',
-      maxWidth: layout.maxWidth,
+      maxWidth: 1360,
       alignSelf: 'center',
       paddingHorizontal: spacing.lg,
       paddingTop: spacing.lg,
@@ -660,40 +692,36 @@ const useStyles = makeStyles((t) => {
     resultBannerText: { ...typography.bodySm, color: colors.foreground },
     actionsRow: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.xs },
 
-    scoresGrid: { gap: spacing.sm },
-    scoresGridWide: { flexDirection: 'row', alignItems: 'stretch' },
+    scoresGrid: { gap: spacing.md },
+    scoresGridWide: { flexDirection: 'row', alignItems: 'stretch', gap: spacing.md },
     overallCard: {
-      backgroundColor: colors.primary,
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: spacing.md,
+      backgroundColor: colors.primarySoft,
+      borderWidth: 1,
+      borderColor: colors.borderSubtle,
       borderRadius: radii.lg,
       padding: spacing.lg,
-      ...t.shadows.md,
     },
-    overallCardWide: { flexBasis: '31%', flexShrink: 0 },
-    overallLabel: { color: colors.onPrimaryMuted },
-    overallScore: { ...typography.display, color: colors.onPrimary },
-    percent: { ...typography.h2, color: colors.onPrimary },
-    overallTrack: {
-      height: 8,
-      borderRadius: radii.full,
-      backgroundColor: colors.onPrimaryMuted,
-      marginTop: spacing.sm,
-      overflow: 'visible',
+    overallCardWide: { flexBasis: '38%', flexShrink: 0, minWidth: 0 },
+    overallRing: { aspectRatio: 1, position: 'relative' },
+    overallRingCenter: {
+      ...StyleSheet.absoluteFillObject,
+      alignItems: 'center',
+      justifyContent: 'center',
     },
-    overallFill: {
-      height: '100%',
-      borderRadius: radii.full,
-      backgroundColor: colors.accent,
+    overallLabel: { color: colors.mutedForeground, fontSize: 9 },
+    overallScore: { ...typography.h2, color: colors.primary, lineHeight: 30 },
+    percent: { ...typography.h2, color: colors.primary },
+    overallText: {
+      ...typography.caption,
+      color: colors.foreground,
+      textAlign: 'center',
+      maxWidth: 260,
     },
-    thresholdMark: {
-      position: 'absolute',
-      top: -4,
-      width: 2,
-      height: 16,
-      backgroundColor: colors.onPrimary,
-    },
-    overallText: { ...typography.bodySm, color: colors.onPrimary, marginTop: spacing.md },
-    metricGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
-    metricGridWide: { flex: 1, minWidth: 0 },
+    metricGrid: { gap: spacing.sm },
+    metricGridWide: { flex: 1, minWidth: 0, justifyContent: 'space-between' },
     metricGridCompact: { flexDirection: 'column', flexWrap: 'nowrap', alignItems: 'stretch' },
 
     keywordRow: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.xs, marginBottom: spacing.md },
@@ -713,6 +741,7 @@ const useStyles = makeStyles((t) => {
     quoteGridWide: { flexDirection: 'row' },
     quoteBox: {
       flex: 1,
+      minWidth: 0,
       backgroundColor: colors.background,
       borderRadius: radii.md,
       borderWidth: 1,
@@ -721,9 +750,15 @@ const useStyles = makeStyles((t) => {
     },
     quoteBoxSuggested: { backgroundColor: colors.secondarySoft, borderColor: colors.secondaryBorder },
     quoteLabel: { color: colors.mutedForeground },
-    quoteText: { ...typography.bodySm, color: colors.mutedForeground },
-    quoteTextSuggested: { ...typography.bodyStrong, color: colors.foreground },
-    headline: { flex: 0, marginBottom: spacing.md },
+    quoteText: { ...typography.bodySm, color: colors.mutedForeground, flexShrink: 1 },
+    quoteTextSuggested: { ...typography.bodyStrong, color: colors.foreground, flexShrink: 1 },
+    headline: {
+      flexGrow: 0,
+      flexShrink: 0,
+      flexBasis: 'auto',
+      alignSelf: 'stretch',
+      marginBottom: spacing.md,
+    },
 
     // CTA final
     cta: {
