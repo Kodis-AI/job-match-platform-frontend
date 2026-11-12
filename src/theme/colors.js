@@ -38,6 +38,9 @@ export const palettes = {
 
     destructive: '#DC2626',
     onDestructive: '#FFFFFF',
+    destructiveSoft: '#FEF2F2',
+    destructiveBorder: '#FECACA',
+    destructiveText: '#B91C1C',
 
     ring: '#4F46E5',
     placeholder: '#7C849F',
@@ -77,6 +80,9 @@ export const palettes = {
 
     destructive: '#F87171',
     onDestructive: '#2A0909',
+    destructiveSoft: '#3A1518',
+    destructiveBorder: '#7F1D1D',
+    destructiveText: '#FCA5A5',
 
     ring: '#A5A0FF',
     placeholder: '#A7A8C2',

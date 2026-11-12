@@ -253,6 +253,8 @@ const useStyles = makeStyles((t) => ({
 | success (texto) | `#059669` | `#34D399` |
 | warning (texto) | `#B45309` | `#FBBF24` |
 | destructive | `#DC2626` | `#F87171` |
+| destructiveSoft / destructiveBorder | `#FEF2F2` / `#FECACA` | `#3A1518` / `#7F1D1D` |
+| destructiveText (sobre destructiveSoft) | `#B91C1C` (5.9:1) | `#FCA5A5` (8.5:1) |
 
 > El verde se reserva para estados de éxito. Para acciones y textos de marca usa los tokens primary/accent.
 
@@ -272,3 +274,9 @@ Escala: display 48 · h1 30 · h2 24 · h3 20 · title 18 · subtitle/body 16 ·
 - Todo lo que parezca pulsable es `Pressable` con `accessibilityRole`, estado pressed (opacidad 0.82) y acción real o aviso "próximamente".
 - Sombras solo en modo claro (`t.shadows.sm|md`); en oscuro se diferencia por superficie y borde.
 - Respeta las áreas seguras con `useSafeAreaInsets()`.
+
+### Formularios y autenticación
+- Campos: `TextField` (`src/components/TextField.js`) con etiqueta visible, altura ≥ 48px, borde `inputBorder` → `ring` al enfocar y error en línea con icono + `destructiveText`, anunciado (`accessibilityLiveRegion`).
+- Contraseñas: siempre con botón mostrar/ocultar (44px). En registro, checklist de requisitos en vivo (icono `success` + texto `foreground`; `success` a 12px no alcanza 4.5:1 sobre `card`).
+- Errores de envío: `FormAlert tone="error"` arriba del formulario; validación en blur y al enviar, moviendo el foco al primer campo inválido.
+- Pantallas de acceso: `AuthLayout` — dos columnas (panel de marca `primarySoft` + tarjeta) desde 900px; una columna centrada (máx. 460px) por debajo.

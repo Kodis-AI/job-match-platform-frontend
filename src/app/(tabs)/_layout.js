@@ -2,17 +2,30 @@ import { useState } from 'react';
 import { Tabs, usePathname } from 'expo-router';
 
 import { Icon } from '../../components';
+import { useAuth } from '../../context/AuthContext';
 import { PortalContext } from '../../context/PortalContext';
 import { useTheme } from '../../theme';
 import { useWorkspaceLayout } from '../../theme/useWorkspaceLayout';
+
+const RECRUITER_ROUTES = ['/portal', '/pipeline', '/review'];
 
 export default function TabLayout() {
   const { colors, fonts } = useTheme();
   const { isDesktop } = useWorkspaceLayout();
   const pathname = usePathname();
+  const { isAuthenticated } = useAuth();
   const [portal, setPortal] = useState(() =>
-    pathname.endsWith('/match') ? 'candidato' : 'reclutador',
+    pathname.endsWith('/match') || !isAuthenticated ? 'candidato' : 'reclutador',
   );
+
+  const [syncedPath, setSyncedPath] = useState(pathname);
+
+  // Mantiene el portal activo sincronizado con la ruta (p. ej. al volver del login).
+  if (syncedPath !== pathname) {
+    setSyncedPath(pathname);
+    if (pathname.endsWith('/match')) setPortal('candidato');
+    else if (RECRUITER_ROUTES.some((route) => pathname.endsWith(route))) setPortal('reclutador');
+  }
   const value = { portal, setPortal };
 
   return (
@@ -60,30 +73,32 @@ export default function TabLayout() {
             href: portal === 'candidato' ? undefined : null,
           }}
         />
-        <Tabs.Screen
-          name="portal"
-          listeners={{ tabPress: () => setPortal('reclutador') }}
-          options={{
-            title: 'Panel Reclutador',
-            href: portal === 'reclutador' ? undefined : null,
-          }}
-        />
-        <Tabs.Screen
-          name="pipeline"
-          listeners={{ tabPress: () => setPortal('reclutador') }}
-          options={{
-            title: 'Ranking & Pipeline',
-            href: portal === 'reclutador' ? undefined : null,
-          }}
-        />
-        <Tabs.Screen
-          name="review"
-          listeners={{ tabPress: () => setPortal('reclutador') }}
-          options={{
-            title: 'Análisis profundo Match',
-            href: portal === 'reclutador' ? undefined : null,
-          }}
-        />
+        <Tabs.Protected guard={isAuthenticated} redirectTo="/sign-in">
+          <Tabs.Screen
+            name="portal"
+            listeners={{ tabPress: () => setPortal('reclutador') }}
+            options={{
+              title: 'Panel Reclutador',
+              href: portal === 'reclutador' ? undefined : null,
+            }}
+          />
+          <Tabs.Screen
+            name="pipeline"
+            listeners={{ tabPress: () => setPortal('reclutador') }}
+            options={{
+              title: 'Ranking & Pipeline',
+              href: portal === 'reclutador' ? undefined : null,
+            }}
+          />
+          <Tabs.Screen
+            name="review"
+            listeners={{ tabPress: () => setPortal('reclutador') }}
+            options={{
+              title: 'Análisis profundo Match',
+              href: portal === 'reclutador' ? undefined : null,
+            }}
+          />
+        </Tabs.Protected>
         <Tabs.Screen name="settings" options={{ title: 'Ajustes y preferencias' }} />
       </Tabs>
     </PortalContext.Provider>

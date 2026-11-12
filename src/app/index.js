@@ -1,5 +1,8 @@
 import { Redirect } from 'expo-router';
 
+import { useAuth } from '../context/AuthContext';
+
 export default function IndexRoute() {
-  return <Redirect href="/portal" />;
+  const { isAuthenticated } = useAuth();
+  return <Redirect href={isAuthenticated ? '/portal' : '/sign-in'} />;
 }

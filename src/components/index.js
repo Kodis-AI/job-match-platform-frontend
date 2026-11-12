@@ -1,8 +1,10 @@
 export { Badge } from './Badge';
 export { Button } from './Button';
 export { Chip } from './Chip';
+export { FormAlert } from './FormAlert';
 export { Icon } from './Icon';
 export { Recommendation, Suggestion } from './Recommendation';
 export { ScoreCard } from './ScoreCard';
 export { StepTitle } from './StepTitle';
+export { TextField } from './TextField';
 export { Overline, SectionHeading } from './Typography';

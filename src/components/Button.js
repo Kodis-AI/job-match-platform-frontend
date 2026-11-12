@@ -1,4 +1,4 @@
-import { Pressable, Text, View } from 'react-native';
+import { ActivityIndicator, Pressable, Text, View } from 'react-native';
 
 import { makeStyles, useTheme } from '../theme';
 import { Icon } from './Icon';
@@ -7,6 +7,7 @@ import { Icon } from './Icon';
  * Botón con variantes del sistema de diseño.
  * variant: 'accent' (CTA principal) | 'primary' | 'outline' | 'soft' | 'ghost'
  * size: 'md' (44px) | 'lg' (52px)
+ * loading: muestra un indicador y bloquea pulsaciones repetidas.
  */
 export function Button({
   label,
@@ -18,11 +19,14 @@ export function Button({
   accessibilityLabel,
   accessibilityHint,
   disabled = false,
+  loading = false,
   fullWidth = false,
   style,
 }) {
   const styles = useStyles();
   const { colors } = useTheme();
+
+  const isDisabled = disabled || loading;
 
   const tone = {
     accent: { bg: colors.accent, fg: colors.onAccent, border: colors.accent },
@@ -37,8 +41,8 @@ export function Button({
       accessibilityRole="button"
       accessibilityLabel={accessibilityLabel ?? label}
       accessibilityHint={accessibilityHint}
-      accessibilityState={{ disabled }}
-      disabled={disabled}
+      accessibilityState={{ disabled: isDisabled, busy: loading }}
+      disabled={isDisabled}
       onPress={onPress}
       hitSlop={4}
       style={({ pressed }) => [
@@ -48,11 +52,16 @@ export function Button({
         fullWidth && styles.fullWidth,
         pressed && styles.pressed,
         disabled && styles.disabled,
+        loading && styles.loading,
         style,
       ]}
     >
       <View style={styles.content}>
-        {iconLeft ? <Icon name={iconLeft} size={size === 'lg' ? 'md' : 'sm'} color={tone.fg} /> : null}
+        {loading ? (
+          <ActivityIndicator size="small" color={tone.fg} />
+        ) : iconLeft ? (
+          <Icon name={iconLeft} size={size === 'lg' ? 'md' : 'sm'} color={tone.fg} />
+        ) : null}
         <Text
           style={[size === 'lg' ? styles.labelLarge : styles.label, { color: tone.fg }]}
           numberOfLines={2}
@@ -107,5 +116,8 @@ const useStyles = makeStyles((t) => ({
   },
   disabled: {
     opacity: 0.5,
+  },
+  loading: {
+    opacity: 0.85,
   },
 }));

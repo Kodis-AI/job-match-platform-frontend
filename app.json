@@ -14,12 +14,12 @@
         "backgroundColor": "#E6F4FE"
       }
     },
-    "web": {
-    },
+    "web": {},
     "plugins": [
       "expo-font",
       "expo-splash-screen",
-      "expo-router"
+      "expo-router",
+      "expo-secure-store"
     ]
   }
 }

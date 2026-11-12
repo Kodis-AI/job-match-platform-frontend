@@ -1,9 +1,11 @@
-import { Pressable, ScrollView, Text, View } from 'react-native';
+import { useState } from 'react';
+import { ActivityIndicator, Pressable, ScrollView, Text, View } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { router, usePathname } from 'expo-router';
 
 import { Badge, Icon } from './index';
+import { useAuth } from '../context/AuthContext';
 import { usePortal } from '../context/PortalContext';
 import { makeStyles, useTheme } from '../theme';
 import { useWorkspaceLayout } from '../theme/useWorkspaceLayout';
@@ -33,14 +35,15 @@ export function RecruiterPage({ eyebrow, title, description, action, children })
                 <Text style={styles.brandCaption}>ENTERPRISE TALENT INTELLIGENCE</Text>
               </View>
             </View>
-            {!isSettingsRoute ? <WorkspaceModeSwitcher compact={isCompact} /> : null}
-            {!isSettingsRoute ? (
-              <View style={styles.profileGroup}>
-                {!isCompact && (
-                  <Badge label="NLP Pipeline · Demo" tone="success" icon="circle-check" />
-                )}
-              </View>
-            ) : null}
+            {/* En compacto la sesión queda junto a la marca y el selector baja a su propia fila. */}
+            {!isSettingsRoute && !isCompact ? <WorkspaceModeSwitcher /> : null}
+            <View style={styles.profileGroup}>
+              {!isSettingsRoute && isWide && (
+                <Badge label="NLP Pipeline · Demo" tone="success" icon="circle-check" />
+              )}
+              <SessionControls compact={isCompact} />
+            </View>
+            {!isSettingsRoute && isCompact ? <WorkspaceModeSwitcher compact /> : null}
           </View>
         </View>
 
@@ -69,12 +72,85 @@ export function RecruiterPage({ eyebrow, title, description, action, children })
   );
 }
 
+/** Usuario con sesión + botón de cerrar sesión, o acceso para reclutadores sin sesión. */
+function SessionControls({ compact }) {
+  const styles = useStyles();
+  const { colors } = useTheme();
+  const { user, isAuthenticated, signOut } = useAuth();
+  const [signingOut, setSigningOut] = useState(false);
+
+  if (!isAuthenticated) {
+    return (
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel="Iniciar sesión como reclutador"
+        onPress={() => router.push('/sign-in')}
+        style={({ pressed }) => [styles.sessionButton, pressed && styles.pressed]}
+      >
+        <Icon name="log-in" size="sm" color={colors.secondaryText} />
+        {!compact ? <Text style={styles.sessionButtonText}>Acceso reclutador</Text> : null}
+      </Pressable>
+    );
+  }
+
+  const initials = (user.name || user.email)
+    .split(/\s+/)
+    .slice(0, 2)
+    .map((part) => part[0]?.toUpperCase())
+    .join('');
+
+  const handleSignOut = async () => {
+    setSigningOut(true);
+    await signOut();
+    setSigningOut(false);
+    router.replace('/sign-in');
+  };
+
+  return (
+    <View style={styles.session}>
+      <View style={styles.avatar} accessibilityLabel={`Sesión iniciada como ${user.name}`} accessible>
+        <Text style={styles.avatarText}>{initials}</Text>
+      </View>
+      {!compact ? (
+        <View style={styles.sessionCopy}>
+          <Text style={styles.sessionName} numberOfLines={1}>
+            {user.name}
+          </Text>
+          <Text style={styles.sessionEmail} numberOfLines={1}>
+            {user.email}
+          </Text>
+        </View>
+      ) : null}
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel="Cerrar sesión"
+        accessibilityState={{ busy: signingOut, disabled: signingOut }}
+        disabled={signingOut}
+        onPress={handleSignOut}
+        hitSlop={4}
+        style={({ pressed }) => [styles.iconButton, pressed && styles.pressed]}
+      >
+        {signingOut ? (
+          <ActivityIndicator size="small" color={colors.mutedForeground} />
+        ) : (
+          <Icon name="log-out" size="md" color={colors.mutedForeground} />
+        )}
+      </Pressable>
+    </View>
+  );
+}
+
 export function WorkspaceModeSwitcher({ compact = false }) {
   const styles = useStyles();
   const { colors } = useTheme();
   const { portal, setPortal } = usePortal();
+  const { isAuthenticated } = useAuth();
 
   const selectView = (view) => {
+    if (view === 'reclutador' && !isAuthenticated) {
+      router.push({ pathname: '/sign-in', params: { redirect: '/portal' } });
+      return;
+    }
     if (view !== portal) {
       setPortal(view);
       router.replace(view === 'candidato' ? '/match' : '/portal');
@@ -181,7 +257,47 @@ const useStyles = makeStyles((t) => {
       fontSize: 9,
       letterSpacing: 0.6,
     },
-    profileGroup: { flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end' },
+    profileGroup: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'flex-end',
+      gap: spacing.sm,
+    },
+    session: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs },
+    avatar: {
+      width: 36,
+      height: 36,
+      borderRadius: radii.full,
+      backgroundColor: colors.primarySoft,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    avatarText: { ...typography.captionStrong, color: colors.onPrimarySoft },
+    sessionCopy: { maxWidth: 180, minWidth: 0 },
+    sessionName: { ...typography.bodyStrong, color: colors.foreground },
+    sessionEmail: { ...typography.caption, color: colors.mutedForeground },
+    iconButton: {
+      width: 44,
+      height: 44,
+      borderRadius: radii.md,
+      alignItems: 'center',
+      justifyContent: 'center',
+      cursor: 'pointer',
+    },
+    sessionButton: {
+      minHeight: 44,
+      minWidth: 44,
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: spacing.xs,
+      paddingHorizontal: spacing.sm,
+      borderRadius: radii.md,
+      borderWidth: 1,
+      borderColor: colors.secondaryBorder,
+      cursor: 'pointer',
+    },
+    sessionButtonText: { ...typography.buttonSm, color: colors.secondaryText },
     content: {
       width: '100%',
       maxWidth: 1360,
