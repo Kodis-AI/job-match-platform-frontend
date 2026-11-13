@@ -36,7 +36,9 @@ La aplicación tiene dos espacios de trabajo:
 - **Ranking & Pipeline** (`/pipeline`): listado de candidatos ordenado por compatibilidad y estado del proceso.
 - **Análisis profundo Match** (`/review`): explicación detallada de por qué un candidato encaja con la vacante y qué le falta.
 - **Ajustes y preferencias** (`/settings`): pesos del algoritmo, umbral de corte, políticas de anonimización y apariencia (sistema, claro u oscuro).
-- **Autenticación de reclutadores** (`/sign-in`, `/sign-up`): inicio de sesión y registro con Better Auth. Por ahora funciona en modo simulado.
+- **Autenticación de reclutadores** (`/sign-in`, `/sign-up`): inicio de sesión y registro con Better Auth.
+
+Todos los datos vienen del [backend](https://github.com/Kodis-AI/job-match-platform-backend): la API FastAPI (análisis con IA, vacantes, ranking y ajustes) y el servidor Better Auth (cuentas de reclutador).
 
 ### Requisitos no funcionales
 
@@ -51,7 +53,7 @@ La aplicación tiene dos espacios de trabajo:
   - Etiquetas visibles en los formularios y errores anunciados a los lectores de pantalla.
   - Foco visible en todos los controles.
 - **Seguridad**:
-  - Las rutas del reclutador están protegidas en el cliente.
+  - Las rutas del reclutador están protegidas en el cliente, y la API valida el JWT de la sesión en cada endpoint del reclutador.
   - En nativo, la sesión se guarda en `expo-secure-store`.
 
 ---
@@ -67,6 +69,9 @@ La aplicación tiene dos espacios de trabajo:
 | Navegación | [Expo Router](https://docs.expo.dev/router/introduction/) | 58 | Enrutado basado en archivos, pestañas y rutas protegidas |
 | Navegación | `react-native-screens`, `react-native-safe-area-context` | — | Pantallas nativas y áreas seguras |
 | Autenticación | [Better Auth](https://www.better-auth.com/) + `@better-auth/expo` | 1.7 | Cliente de autenticación (email y contraseña) |
+| Datos | [TanStack Query](https://tanstack.com/query) | 5 | Peticiones a la API, caché, estados de carga y sondeo del análisis |
+| Archivos | `expo-document-picker` | 58 | Selección de currículums (PDF, DOCX, TXT) |
+| Portapapeles | `expo-clipboard` | 58 | Copiar sugerencias y preguntas de entrevista |
 | Almacenamiento | `expo-secure-store` | 58 | Sesión cifrada en el dispositivo |
 | Red | `expo-network` | 58 | Requerido por el cliente Expo de Better Auth |
 | Tipografía | `@expo-google-fonts/poppins`, `@expo-google-fonts/open-sans` | 0.4 | Títulos (Poppins) y cuerpo (Open Sans) |
@@ -106,15 +111,20 @@ job-match-platform-frontend/
     ├── components/           # Componentes reutilizables (Button, TextField, Badge…)
     │   └── auth/             # AuthLayout, AuthLink
     ├── context/              # AuthContext (sesión) y PortalContext (espacio activo)
-    ├── lib/auth/             # Capa de autenticación
-    │   ├── index.js          # Selecciona el cliente mock o real
-    │   ├── betterAuthClient.js
-    │   ├── mockAuthClient.js
-    │   ├── errors.js         # Códigos de Better Auth → mensajes en español
-    │   ├── validation.js     # Validación de formularios
-    │   └── redirect.js       # Lista blanca de rutas de retorno
+    ├── lib/
+    │   ├── api/              # Capa de datos
+    │   │   ├── client.js     # fetch con el JWT de la sesión y errores en español (ApiError)
+    │   │   ├── queries.js    # Hooks de TanStack Query: un hook por recurso o acción
+    │   │   └── files.js      # Selector de currículums y armado del multipart
+    │   ├── auth/             # Capa de autenticación
+    │   │   ├── index.js
+    │   │   ├── betterAuthClient.js
+    │   │   ├── errors.js     # Códigos de Better Auth → mensajes en español
+    │   │   ├── validation.js # Validación de formularios
+    │   │   └── redirect.js   # Lista blanca de rutas de retorno
+    │   └── applicationStatus.js  # Estado visible de una candidatura
     ├── theme/                # Tokens de color, tipografía, espaciado y ThemeProvider
-    └── utils/                # Utilidades (avisos multiplataforma)
+    └── utils/                # Avisos multiplataforma y formato (fechas, tamaños, iniciales)
 ```
 
 Los archivos de `src/app/` solo reexportan pantallas de `src/screens/`. Así la lógica de UI queda separada del enrutado, y el código que no es una ruta nunca vive dentro de `src/app/`.
@@ -144,9 +154,9 @@ Los archivos de `src/app/` solo reexportan pantallas de `src/screens/`. Así la 
 - Si el usuario ya tiene sesión, las pantallas de login y registro lo redirigen al destino indicado en el parámetro `redirect`. Ese destino se valida contra la lista blanca de `lib/auth/redirect.js` para evitar redirecciones abiertas.
 - El selector **Portal Reclutador / Portal Candidato** lleva al login si se elige el modo reclutador sin sesión.
 
-> La protección es solo del lado del cliente. El backend debe validar la sesión en cada endpoint.
+> La protección de rutas del cliente es solo una ayuda de navegación. Quien decide el acceso es la API, que exige un JWT válido y solo devuelve los datos del reclutador que lo presenta.
 
-### Flujo de autenticación
+### Flujo de autenticación y datos
 
 ```
 Pantalla (SignIn / SignUp)
@@ -155,12 +165,20 @@ Pantalla (SignIn / SignUp)
 AuthContext  ──  useSession() ──▶  isAuthenticated, user, isPending
         │
         ▼
-lib/auth/index.js
-        ├── EXPO_PUBLIC_AUTH_MODE=mock  → mockAuthClient   (sin backend)
-        └── EXPO_PUBLIC_AUTH_MODE=real  → betterAuthClient (servidor Better Auth)
+lib/auth  ──▶  servidor Better Auth (EXPO_PUBLIC_AUTH_URL)
+                      │
+                      │  authClient.token()  →  JWT de vida corta
+                      ▼
+lib/api/client.js  ──  Authorization: Bearer <JWT>  ──▶  API FastAPI (EXPO_PUBLIC_API_URL)
+        ▲
+        │  useDashboard, useJobs, useRankedApplications, useApplication…
+Pantallas (lib/api/queries.js)
 ```
 
-Los dos clientes exponen la misma API (`signIn.email`, `signUp.email`, `signOut`, `useSession`) y devuelven `{ data, error }`. Pasar del modo simulado al real no requiere cambiar ninguna pantalla.
+- La sesión la gestiona Better Auth (cookie en web, `expo-secure-store` en nativo).
+- Para llamar a la API, `client.js` pide a Better Auth un JWT firmado y lo envía como `Bearer`. La API lo valida contra las claves públicas del servidor de autenticación. El token se guarda en memoria hasta poco antes de caducar y se descarta al cambiar de usuario.
+- Las pantallas no hacen `fetch` directamente: usan los hooks de `lib/api/queries.js`, que exponen `data`, `isPending` y `error`. Los mensajes de `error.message` ya están en español.
+- El portal del candidato es público: su análisis no envía token ni guarda nada en el servidor.
 
 ### Tema y estilos
 
@@ -181,6 +199,8 @@ Los dos clientes exponen la misma API (`signIn.email`, `signUp.email`, `signOut`
   - un emulador de Android Studio o un simulador de Xcode;
   - un *development build* propio (ver más abajo).
 
+- El **backend** en marcha (API en el puerto 8000 y servidor de autenticación en el 3000). Sigue el README de [job-match-platform-backend](https://github.com/Kodis-AI/job-match-platform-backend): `docker compose up --build --watch`.
+
 ### Pasos
 
 ```bash
@@ -197,6 +217,8 @@ cp .env.example .env
 # 4. Iniciar el servidor de desarrollo
 npx expo start
 ```
+
+Las variables `EXPO_PUBLIC_*` se leen al arrancar: si cambias `.env`, reinicia Expo con `npx expo start --clear`.
 
 Desde la terminal de Expo:
 
@@ -224,12 +246,14 @@ Usa siempre `npx expo install <paquete>` en lugar de `npm install`. Así se resu
 
 ## Variables de entorno
 
-| Variable | Valores | Por defecto | Descripción |
-| --- | --- | --- | --- |
-| `EXPO_PUBLIC_AUTH_MODE` | `mock` \| `real` | `mock` | `mock` usa la autenticación simulada; `real` conecta con un servidor Better Auth. |
-| `EXPO_PUBLIC_AUTH_URL` | URL | `http://localhost:3000` | URL base del servidor Better Auth. Solo se usa en modo `real`. |
+| Variable | Valor en local | Descripción |
+| --- | --- | --- |
+| `EXPO_PUBLIC_AUTH_URL` | `http://localhost:3000` | URL base del servidor Better Auth (servicio `auth` del backend). |
+| `EXPO_PUBLIC_API_URL` | `http://localhost:8000` | URL base de la API FastAPI (servicio `api` del backend). |
 
-`.env` está en `.gitignore`. En el repositorio solo se versiona `.env.example`.
+Las dos son obligatorias: la app falla al arrancar si falta alguna. `.env` está en `.gitignore`; en el repositorio solo se versiona `.env.example`.
+
+Para probar en un dispositivo físico, `localhost` no sirve: usa la IP de tu equipo en la red local en ambas variables y sigue la nota del README del backend para exponer los puertos.
 
 ---
 
@@ -249,34 +273,14 @@ Usa siempre `npx expo install <paquete>` en lugar de `npm install`. Así se resu
 
 ## Autenticación
 
-### Modo simulado (por defecto)
+La app usa el servidor Better Auth del backend (`auth-server/`), configurado con correo y contraseña y los plugins `expo()` y `jwt()`. No hay modo simulado ni cuenta demo: crea una cuenta desde **Crear cuenta**. La contraseña debe tener al menos 8 caracteres, una letra y un número.
 
-No necesita backend. La sesión se guarda en `localStorage` (web) o en `expo-secure-store` (nativo) y se conserva al recargar.
+El cliente está en `src/lib/auth/betterAuthClient.js`:
 
-| Cuenta demo | Valor |
-| --- | --- |
-| Correo | `demo@talentmatch.ai` |
-| Contraseña | `Demo1234` |
+- `expoClient` guarda la sesión en `expo-secure-store` en nativo; en web usa la cookie del navegador.
+- `jwtClient` añade `authClient.token()`, que la capa de API usa para obtener el JWT que valida FastAPI.
 
-También puedes registrar cuentas nuevas. La contraseña debe tener al menos 8 caracteres, una letra y un número.
-
-### Conectar un servidor Better Auth real
-
-1. En el `.env` del cliente, define `EXPO_PUBLIC_AUTH_MODE=real` y `EXPO_PUBLIC_AUTH_URL=<url-del-servidor>`.
-2. En el servidor, instala `better-auth` y `@better-auth/expo`, y configura:
-
-   ```ts
-   import { betterAuth } from "better-auth";
-   import { expo } from "@better-auth/expo";
-
-   export const auth = betterAuth({
-     plugins: [expo()],
-     emailAndPassword: { enabled: true },
-     trustedOrigins: ["matchai://"],
-   });
-   ```
-
-3. Reinicia Expo con la caché limpia: `npx expo start --clear`.
+En web, el origen de la app (`http://localhost:8081` en desarrollo) debe estar en `TRUSTED_ORIGINS` del servidor de autenticación y en `CORS_ORIGINS` de la API; el `docker-compose.yml` del backend ya lo incluye.
 
 ---
 
