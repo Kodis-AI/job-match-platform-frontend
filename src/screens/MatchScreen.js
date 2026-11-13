@@ -1,4 +1,5 @@
 import { useRef, useState } from 'react';
+import * as Clipboard from 'expo-clipboard';
 import { StatusBar } from 'expo-status-bar';
 import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -8,6 +9,7 @@ import {
   Badge,
   Button,
   Chip,
+  FormAlert,
   Icon,
   Overline,
   Recommendation,
@@ -17,9 +19,12 @@ import {
   Suggestion,
 } from '../components';
 import { WorkspaceModeSwitcher } from '../components/RecruiterPage';
+import { pickCvFiles } from '../lib/api/files';
+import { useCandidateAnalysis } from '../lib/api/queries';
 import { makeStyles, useTheme } from '../theme';
 import { useWorkspaceLayout } from '../theme/useWorkspaceLayout';
-import { comingSoon } from '../utils/notify';
+import { formatFileSize } from '../utils/format';
+import { comingSoon, notify } from '../utils/notify';
 
 const JOB_SAMPLES = [
   {
@@ -34,60 +39,74 @@ const JOB_SAMPLES = [
   },
 ];
 
-const SCORES = [
-  {
-    title: 'Habilidades técnicas',
-    score: 88,
-    icon: 'cpu',
-    tone: 'primary',
-    detail: 'Fuerte coincidencia en Backend, AWS y bases de datos relacionales.',
-  },
-  {
-    title: 'Experiencia y seniority',
-    score: 80,
-    icon: 'trending-up',
-    tone: 'success',
-    detail: 'Cumples los 5+ años exigidos; perfil alineado a nivel Staff / Senior.',
-  },
-  {
-    title: 'Palabras clave ATS',
-    score: 92,
-    icon: 'scan-search',
-    tone: 'accent',
-    detail: 'Densidad léxica óptima sin detección de sobrecarga artificial.',
-  },
-  {
-    title: 'Formación y certificaciones',
-    score: 75,
-    icon: 'graduation-cap',
-    tone: 'warning',
-    detail: 'Grado validado; falta certificación Kubernetes formal.',
-  },
-];
+// The API rejects shorter job descriptions.
+const MIN_JOB_DESCRIPTION_LENGTH = 50;
 
-const MISSING_KEYWORDS = ['Kubernetes', 'CI/CD pipelines', 'Arquitectura hexagonal'];
+const PARTIAL_FIT_MIN_SCORE = 50;
+
+const RING_RADIUS = 43;
+const RING_CIRCUMFERENCE = 2 * Math.PI * RING_RADIUS;
+
+const DIMENSION_PRESENTATION = {
+  technical: { title: 'Habilidades técnicas', icon: 'cpu', tone: 'primary' },
+  experience: { title: 'Experiencia y seniority', icon: 'trending-up', tone: 'success' },
+  keywords: { title: 'Palabras clave ATS', icon: 'scan-search', tone: 'accent' },
+  education: { title: 'Formación y certificaciones', icon: 'graduation-cap', tone: 'warning' },
+};
+
+const NO_MISSING_KEYWORDS = 'Tu currículum ya contiene los términos clave de la vacante.';
 
 export default function MatchScreen() {
   const styles = useStyles();
-  const { colors, layout } = useTheme();
+  const { colors } = useTheme();
   const insets = useSafeAreaInsets();
-  const { isCompact, contentWidth } = useWorkspaceLayout();
-  const isWide = contentWidth >= layout.breakpoints.wide;
-  const isResultsWide = contentWidth >= 640;
+  const { isCompact, isWide } = useWorkspaceLayout();
 
   const scrollRef = useRef(null);
   const formY = useRef(0);
-  const resultsY = useRef(0);
+  const scrollToResultsOnLayout = useRef(false);
+  const [cv, setCv] = useState(null);
   const [jobDescription, setJobDescription] = useState(JOB_SAMPLES[0].description);
   const [activeSample, setActiveSample] = useState(null);
 
-  const scrollTo = (position) => {
-    scrollRef.current?.scrollTo({ y: position.current, animated: true });
+  const analysis = useCandidateAnalysis();
+  const report = analysis.data;
+  const trimmedDescription = jobDescription.trim();
+  const isDescriptionTooShort = trimmedDescription.length < MIN_JOB_DESCRIPTION_LENGTH;
+
+  const scrollToY = (y) => {
+    scrollRef.current.scrollTo({ y, animated: true });
   };
 
   const selectSample = (sample) => {
     setActiveSample(sample.title);
     setJobDescription(sample.description);
+  };
+
+  const pickCv = async () => {
+    const [asset] = await pickCvFiles();
+    if (!asset) return;
+    setCv(asset);
+    // The excerpt, the results and any error describe the previous file.
+    analysis.reset();
+  };
+
+  const evaluate = () => {
+    analysis.mutate(
+      { cv, jobDescription: trimmedDescription },
+      {
+        onSuccess: () => {
+          // The results mount after this callback runs, so their onLayout does the scrolling.
+          scrollToResultsOnLayout.current = true;
+        },
+      },
+    );
+  };
+
+  const revealResults = (event) => {
+    if (!scrollToResultsOnLayout.current) return;
+    scrollToResultsOnLayout.current = false;
+    scrollToY(event.nativeEvent.layout.y);
   };
 
   return (
@@ -120,7 +139,11 @@ export default function MatchScreen() {
             <WorkspaceModeSwitcher compact={isCompact} />
             <View style={styles.headerActions}>
               {!isCompact && (
-                <Button label="Cómo funciona" variant="ghost" onPress={() => scrollTo(formY)} />
+                <Button
+                  label="Cómo funciona"
+                  variant="ghost"
+                  onPress={() => scrollToY(formY.current)}
+                />
               )}
             </View>
           </View>
@@ -157,44 +180,54 @@ export default function MatchScreen() {
             <View style={styles.inputColumn}>
               <StepTitle step="1" title="Tu currículum" detail="PDF · DOCX · TXT" />
               <View style={styles.panel}>
-                <View style={styles.fileCard}>
-                  <View style={styles.fileIcon}>
-                    <Icon name="file-text" size="lg" color={colors.onPrimarySoft} />
+                {cv && (
+                  <View style={styles.fileCard}>
+                    <View style={styles.fileIcon}>
+                      <Icon name="file-text" size="lg" color={colors.onPrimarySoft} />
+                    </View>
+                    <View style={styles.fileDetails}>
+                      <Text numberOfLines={1} style={styles.fileName}>
+                        {cv.name}
+                      </Text>
+                      <Text style={styles.fileMeta}>{formatFileSize(cv.size)}</Text>
+                    </View>
+                    <Badge label="Listo" tone="success" icon="check" />
                   </View>
-                  <View style={styles.fileDetails}>
-                    <Text numberOfLines={1} style={styles.fileName}>
-                      CV_Carlos_Mendoza_2025.pdf
-                    </Text>
-                    <Text style={styles.fileMeta}>248 KB · Actualizado hace 2 días</Text>
-                  </View>
-                  <Badge label="Listo" tone="success" icon="check" />
-                </View>
+                )}
 
                 <Pressable
                   accessibilityRole="button"
-                  accessibilityLabel="Subir una nueva versión del currículum"
+                  accessibilityLabel={cv ? 'Reemplazar el currículum' : 'Subir tu currículum'}
                   accessibilityHint="Abre el selector de archivos"
-                  onPress={() => comingSoon('Subir currículum')}
-                  style={({ pressed }) => [styles.uploadArea, pressed && styles.pressed]}
+                  onPress={pickCv}
+                  style={({ pressed }) => [
+                    styles.uploadArea,
+                    !cv && styles.uploadAreaEmpty,
+                    pressed && styles.pressed,
+                  ]}
                 >
                   <View style={styles.uploadIcon}>
                     <Icon name="upload" size="md" color={colors.secondaryText} />
                   </View>
                   <Text style={styles.uploadTitle}>
-                    Arrastra una nueva versión o explora tus archivos
+                    {cv ? 'Reemplazar por otro archivo' : 'Selecciona tu currículum'}
                   </Text>
-                  <Text style={styles.uploadHint}>Compatible con formatos estructurados ATS</Text>
+                  <Text style={styles.uploadHint}>Tamaño máximo: 5 MB</Text>
                 </Pressable>
 
-                <View style={styles.excerptHeader}>
-                  <Text style={styles.excerptTitle}>Extracto reconocido por IA</Text>
-                  <Badge label="7 secciones procesadas" tone="success" icon="check" />
-                </View>
-                <Text style={styles.excerpt}>
-                  “Ingeniero de Software Senior con 6+ años liderando desarrollo Backend en
-                  arquitecturas de microservicios distribuidas sobre AWS, Docker y bases de datos
-                  transaccionales...”
-                </Text>
+                {report && (
+                  <>
+                    <View style={styles.excerptHeader}>
+                      <Text style={styles.excerptTitle}>Extracto reconocido por IA</Text>
+                      <Badge
+                        label={`Secciones detectadas: ${report.cv_sections.length}`}
+                        tone="success"
+                        icon="check"
+                      />
+                    </View>
+                    <Text style={styles.excerpt}>{report.cv_excerpt}</Text>
+                  </>
+                )}
               </View>
             </View>
 
@@ -219,6 +252,7 @@ export default function MatchScreen() {
                   accessibilityLabel="Descripción de la vacante"
                   accessibilityLabelledBy="jobDescriptionLabel"
                   multiline
+                  maxLength={20000}
                   onChangeText={(text) => {
                     setJobDescription(text);
                     setActiveSample(null);
@@ -237,7 +271,10 @@ export default function MatchScreen() {
                     onPress={() => comingSoon('Pegar enlace')}
                     style={styles.linkButton}
                   />
-                  <Text style={styles.characterCount}>{jobDescription.length} caracteres</Text>
+                  <Text style={styles.characterCount}>
+                    {trimmedDescription.length} caracteres
+                    {isDescriptionTooShort && ` · mínimo ${MIN_JOB_DESCRIPTION_LENGTH}`}
+                  </Text>
                 </View>
               </View>
             </View>
@@ -249,186 +286,25 @@ export default function MatchScreen() {
             size="lg"
             iconLeft="sparkles"
             iconRight="arrow-right"
-            onPress={() => scrollTo(resultsY)}
+            disabled={!cv || isDescriptionTooShort}
+            loading={analysis.isPending}
+            onPress={evaluate}
             style={styles.evaluateButton}
           />
           <Text style={styles.evaluateCaption}>
-            Comparación en tiempo real · 48 factores de correlación analizados
+            Análisis semántico de tu CV frente a la vacante · tarda unos segundos
           </Text>
+          {analysis.error && (
+            <FormAlert
+              tone="error"
+              title="No pudimos completar el análisis"
+              message={analysis.error.message}
+              style={styles.evaluateError}
+            />
+          )}
 
           {/* Resultados */}
-          <View
-            onLayout={(event) => {
-              resultsY.current = event.nativeEvent.layout.y;
-            }}
-            style={styles.results}
-          >
-            <View style={styles.resultBanner} accessibilityRole="summary">
-              <View style={styles.resultBannerIcon}>
-                <Icon name="circle-check" size="lg" color={colors.success} />
-              </View>
-              <View style={styles.flexOne}>
-                <Text style={styles.resultBannerTitle}>Alta probabilidad de entrevista</Text>
-                <Text style={styles.resultBannerText}>
-                  Tu perfil presenta un alineamiento excepcional con los requerimientos centrales
-                  del puesto.
-                </Text>
-              </View>
-            </View>
-
-            <SectionHeading
-              overline="Resumen de compatibilidad"
-              title="Diagnóstico integral de ajuste profesional"
-              stacked={isCompact}
-            >
-              <View style={styles.actionsRow}>
-                <Button
-                  label="Compartir"
-                  variant="outline"
-                  iconLeft="share-2"
-                  onPress={() => comingSoon('Compartir informe')}
-                />
-                <Button
-                  label="Descargar informe"
-                  variant="soft"
-                  iconLeft="download"
-                  onPress={() => comingSoon('Descargar informe')}
-                />
-              </View>
-            </SectionHeading>
-
-            <View style={[styles.scoresGrid, isResultsWide && styles.scoresGridWide]}>
-              <View
-                accessible
-                accessibilityLabel="Match general: 84 por ciento. Superas el umbral de corte automático ATS del 75 por ciento."
-                style={[styles.overallCard, isResultsWide && styles.overallCardWide]}
-              >
-                <View
-                  style={[
-                    styles.overallRing,
-                    { width: Math.min(200, Math.max(140, contentWidth - 80)) },
-                  ]}
-                >
-                  <Svg width="100%" height="100%" viewBox="0 0 100 100">
-                    <Circle
-                      cx="50"
-                      cy="50"
-                      r="43"
-                      fill="none"
-                      stroke={colors.borderSubtle}
-                      strokeWidth="7"
-                    />
-                    <Circle
-                      cx="50"
-                      cy="50"
-                      r="43"
-                      fill="none"
-                      stroke={colors.primary}
-                      strokeWidth="7"
-                      strokeLinecap="round"
-                      strokeDasharray={`${2 * Math.PI * 43} ${2 * Math.PI * 43}`}
-                      strokeDashoffset={2 * Math.PI * 43 * 0.16}
-                      transform="rotate(-90 50 50)"
-                    />
-                  </Svg>
-                  <View style={styles.overallRingCenter}>
-                    <Text style={styles.overallScore}>84%</Text>
-                    <Overline style={styles.overallLabel}>Match general</Overline>
-                  </View>
-                </View>
-                <Text style={styles.overallText}>
-                  Superas el umbral de corte automático ATS (75%) para la ronda de preselección
-                  técnica.
-                </Text>
-              </View>
-
-              <View
-                style={[
-                  styles.metricGrid,
-                  isResultsWide && styles.metricGridWide,
-                  isCompact && styles.metricGridCompact,
-                ]}
-              >
-                {SCORES.map((item) => (
-                  <ScoreCard key={item.title} {...item} stacked={isCompact} />
-                ))}
-              </View>
-            </View>
-
-            <SectionHeading
-              overline="Próximos pasos"
-              title="Plan de optimización recomendado"
-              description="Acciones concretas y directas para elevar tu encaje del 84% al 96%."
-              stacked={isCompact}
-            >
-              <Button
-                label="Copiar sugerencias"
-                variant="outline"
-                iconLeft="copy"
-                onPress={() => comingSoon('Copiar sugerencias')}
-              />
-            </SectionHeading>
-
-            <Recommendation
-              icon="search"
-              title="Palabras clave faltantes"
-              description="La vacante menciona explícitamente 3 metodologías y herramientas que aún no figuran de forma idéntica en tu currículum:"
-            >
-              <View style={styles.keywordRow}>
-                {MISSING_KEYWORDS.map((keyword) => (
-                  <View key={keyword} style={styles.keyword}>
-                    <Text style={styles.keywordText}>{keyword}</Text>
-                    <Badge label="Ausente" tone="warning" icon="circle-alert" />
-                  </View>
-                ))}
-              </View>
-              <Suggestion>
-                Añádelas en la sección técnica o en el desglose de tu último empleo.
-              </Suggestion>
-            </Recommendation>
-
-            <Recommendation
-              icon="trending-up"
-              title="Impacto de métricas"
-              description="Las descripciones de tus logros son cualitativas. Los reclutadores técnicos priorizan métricas de rendimiento cuantificables."
-            >
-              <View style={[styles.quoteGrid, isWide && styles.quoteGridWide]}>
-                <View style={styles.quoteBox}>
-                  <Overline style={styles.quoteLabel}>Actualmente dice</Overline>
-                  <Text style={styles.quoteText}>
-                    “Mejora sustancial en la velocidad de la base de datos...”
-                  </Text>
-                </View>
-                <View style={[styles.quoteBox, styles.quoteBoxSuggested]}>
-                  <Overline>Formato recomendado</Overline>
-                  <Text style={styles.quoteTextSuggested}>
-                    “Reducción de latencia p99 en 34% mediante particionamiento y caché Redis...”
-                  </Text>
-                </View>
-              </View>
-              <Suggestion>
-                Incluye volumen de transacciones por segundo o tamaño de equipo liderado.
-              </Suggestion>
-            </Recommendation>
-
-            <Recommendation
-              icon="award"
-              title="Ajuste de titular y perfil"
-              description="Tu extracto principal actual es muy genérico. Conéctalo directamente con el dominio financiero y nubes escalables de la vacante."
-            >
-              <View style={[styles.quoteBox, styles.quoteBoxSuggested, styles.headline]}>
-                <Overline>Propuesta de titular</Overline>
-                <Text style={styles.quoteTextSuggested}>
-                  “Senior Backend Engineer | Cloud Distributed Systems (AWS & K8s) | FinTech &
-                  High-Throughput Architectures”
-                </Text>
-              </View>
-              <Suggestion>
-                Refleja las primeras 3 líneas del perfil para superar el escáner inicial de 6
-                segundos.
-              </Suggestion>
-            </Recommendation>
-          </View>
+          {report && <MatchResults report={report} onLayout={revealResults} />}
 
           {/* CTA final */}
           <View style={[styles.cta, !isWide && styles.ctaStacked]}>
@@ -465,6 +341,218 @@ export default function MatchScreen() {
           </View>
         </View>
       </ScrollView>
+    </View>
+  );
+}
+
+function MatchResults({ report, onLayout }) {
+  const styles = useStyles();
+  const { colors } = useTheme();
+  const { isCompact, isWide, contentWidth } = useWorkspaceLayout();
+  const isResultsWide = contentWidth >= 640;
+
+  const passesCutoff = report.overall_score >= report.ats_cutoff;
+  const verdict = passesCutoff
+    ? 'Alta probabilidad de entrevista'
+    : report.overall_score >= PARTIAL_FIT_MIN_SCORE
+      ? 'Encaje parcial con la vacante'
+      : 'Encaje bajo con la vacante';
+  const cutoffVerb = passesCutoff ? 'Superas' : 'No alcanzas';
+  const hasMissingKeywords = report.missing_keywords.length > 0;
+
+  const copySuggestions = async () => {
+    const sections = [
+      hasMissingKeywords
+        ? ['Palabras clave faltantes', report.missing_keywords.join(', '), report.keywords_tip]
+        : ['Palabras clave faltantes', NO_MISSING_KEYWORDS],
+    ];
+    if (report.metrics_rewrite) {
+      const { current, suggested, tip } = report.metrics_rewrite;
+      sections.push([
+        'Impacto de métricas',
+        `Actualmente dice: ${current}`,
+        `Formato recomendado: ${suggested}`,
+        tip,
+      ]);
+    }
+    sections.push([
+      'Ajuste de titular y perfil',
+      `Propuesta de titular: ${report.headline_proposal}`,
+      report.headline_tip,
+    ]);
+    const text = sections.map((lines) => lines.join('\n')).join('\n\n');
+
+    // On web the promise resolves to false when the browser refuses the write.
+    const copied = await Clipboard.setStringAsync(text);
+    if (copied) {
+      notify('Sugerencias copiadas', 'El plan de optimización está en tu portapapeles.');
+    } else {
+      notify('No se pudo copiar', 'Tu navegador no permitió el acceso al portapapeles.');
+    }
+  };
+
+  return (
+    <View onLayout={onLayout} style={styles.results}>
+      <View
+        style={[styles.resultBanner, !passesCutoff && styles.resultBannerWarning]}
+        accessibilityRole="summary"
+      >
+        <View style={styles.resultBannerIcon}>
+          <Icon
+            name={passesCutoff ? 'circle-check' : 'circle-alert'}
+            size="lg"
+            color={passesCutoff ? colors.success : colors.warning}
+          />
+        </View>
+        <View style={styles.flexOne}>
+          <Text
+            style={[styles.resultBannerTitle, !passesCutoff && styles.resultBannerTitleWarning]}
+          >
+            {verdict}
+          </Text>
+          <Text style={styles.resultBannerText}>{report.summary}</Text>
+        </View>
+      </View>
+
+      <SectionHeading
+        overline="Resumen de compatibilidad"
+        title="Diagnóstico integral de ajuste profesional"
+        stacked={isCompact}
+      >
+        <View style={styles.actionsRow}>
+          <Button
+            label="Compartir"
+            variant="outline"
+            iconLeft="share-2"
+            onPress={() => comingSoon('Compartir informe')}
+          />
+          <Button
+            label="Descargar informe"
+            variant="soft"
+            iconLeft="download"
+            onPress={() => comingSoon('Descargar informe')}
+          />
+        </View>
+      </SectionHeading>
+
+      <View style={[styles.scoresGrid, isResultsWide && styles.scoresGridWide]}>
+        <View
+          accessible
+          accessibilityLabel={`Match general: ${report.overall_score} por ciento. ${cutoffVerb} el umbral de corte automático ATS del ${report.ats_cutoff} por ciento.`}
+          style={[styles.overallCard, isResultsWide && styles.overallCardWide]}
+        >
+          <View
+            style={[styles.overallRing, { width: Math.min(200, Math.max(140, contentWidth - 80)) }]}
+          >
+            <Svg width="100%" height="100%" viewBox="0 0 100 100">
+              <Circle
+                cx="50"
+                cy="50"
+                r={RING_RADIUS}
+                fill="none"
+                stroke={colors.borderSubtle}
+                strokeWidth="7"
+              />
+              <Circle
+                cx="50"
+                cy="50"
+                r={RING_RADIUS}
+                fill="none"
+                stroke={colors.primary}
+                strokeWidth="7"
+                strokeLinecap="round"
+                strokeDasharray={`${RING_CIRCUMFERENCE} ${RING_CIRCUMFERENCE}`}
+                strokeDashoffset={RING_CIRCUMFERENCE * (1 - report.overall_score / 100)}
+                transform="rotate(-90 50 50)"
+              />
+            </Svg>
+            <View style={styles.overallRingCenter}>
+              <Text style={styles.overallScore}>{report.overall_score}%</Text>
+              <Overline style={styles.overallLabel}>Match general</Overline>
+            </View>
+          </View>
+          <Text style={styles.overallText}>
+            {cutoffVerb} el umbral de corte automático ATS ({report.ats_cutoff}%).
+          </Text>
+        </View>
+
+        <View
+          style={[
+            styles.metricGrid,
+            isResultsWide && styles.metricGridWide,
+            isCompact && styles.metricGridCompact,
+          ]}
+        >
+          {report.dimensions.map(({ key, score, detail }) => (
+            <ScoreCard key={key} {...DIMENSION_PRESENTATION[key]} score={score} detail={detail} />
+          ))}
+        </View>
+      </View>
+
+      <SectionHeading
+        overline="Próximos pasos"
+        title="Plan de optimización recomendado"
+        description="Acciones concretas para mejorar tu encaje con esta vacante."
+        stacked={isCompact}
+      >
+        <Button label="Copiar sugerencias" variant="outline" iconLeft="copy" onPress={copySuggestions} />
+      </SectionHeading>
+
+      <Recommendation
+        icon="search"
+        title="Palabras clave faltantes"
+        description={
+          hasMissingKeywords
+            ? 'La vacante menciona estos términos, que aún no figuran en tu currículum:'
+            : NO_MISSING_KEYWORDS
+        }
+      >
+        {hasMissingKeywords && (
+          <>
+            <View style={styles.keywordRow}>
+              {report.missing_keywords.map((keyword) => (
+                <View key={keyword} style={styles.keyword}>
+                  <Text style={styles.keywordText}>{keyword}</Text>
+                  <Badge label="Ausente" tone="warning" icon="circle-alert" />
+                </View>
+              ))}
+            </View>
+            <Suggestion>{report.keywords_tip}</Suggestion>
+          </>
+        )}
+      </Recommendation>
+
+      {report.metrics_rewrite && (
+        <Recommendation
+          icon="trending-up"
+          title="Impacto de métricas"
+          description="Uno de tus logros está redactado de forma cualitativa. Los reclutadores técnicos priorizan resultados cuantificables."
+        >
+          <View style={[styles.quoteGrid, isWide && styles.quoteGridWide]}>
+            <View style={styles.quoteBox}>
+              <Overline style={styles.quoteLabel}>Actualmente dice</Overline>
+              <Text style={styles.quoteText}>{report.metrics_rewrite.current}</Text>
+            </View>
+            <View style={[styles.quoteBox, styles.quoteBoxSuggested]}>
+              <Overline>Formato recomendado</Overline>
+              <Text style={styles.quoteTextSuggested}>{report.metrics_rewrite.suggested}</Text>
+            </View>
+          </View>
+          <Suggestion>{report.metrics_rewrite.tip}</Suggestion>
+        </Recommendation>
+      )}
+
+      <Recommendation
+        icon="award"
+        title="Ajuste de titular y perfil"
+        description="Un titular alineado con la vacante hace visible tu encaje desde la primera línea del currículum."
+      >
+        <View style={[styles.quoteBox, styles.quoteBoxSuggested, styles.headline]}>
+          <Overline>Propuesta de titular</Overline>
+          <Text style={styles.quoteTextSuggested}>{report.headline_proposal}</Text>
+        </View>
+        <Suggestion>{report.headline_tip}</Suggestion>
+      </Recommendation>
     </View>
   );
 }
@@ -591,9 +679,9 @@ const useStyles = makeStyles((t) => {
       backgroundColor: colors.secondarySoft,
       alignItems: 'center',
       padding: spacing.md,
-      marginBottom: spacing.md,
       cursor: 'pointer',
     },
+    uploadAreaEmpty: { flex: 1, justifyContent: 'center' },
     uploadIcon: {
       width: 40,
       height: 40,
@@ -616,6 +704,7 @@ const useStyles = makeStyles((t) => {
       alignItems: 'center',
       flexWrap: 'wrap',
       gap: spacing.xs,
+      marginTop: spacing.md,
       marginBottom: spacing.xs,
     },
     excerptTitle: { ...typography.bodyStrong, color: colors.foreground },
@@ -665,11 +754,16 @@ const useStyles = makeStyles((t) => {
       color: colors.mutedForeground,
       textAlign: 'center',
       marginTop: spacing.xs,
-      marginBottom: spacing.xl,
+    },
+    evaluateError: {
+      alignSelf: 'center',
+      width: '100%',
+      maxWidth: 480,
+      marginTop: spacing.md,
     },
 
     // Resultados
-    results: { gap: spacing.lg },
+    results: { gap: spacing.lg, marginTop: spacing.xl },
     resultBanner: {
       flexDirection: 'row',
       alignItems: 'center',
@@ -688,7 +782,12 @@ const useStyles = makeStyles((t) => {
       alignItems: 'center',
       justifyContent: 'center',
     },
+    resultBannerWarning: {
+      backgroundColor: colors.warningSoft,
+      borderColor: colors.border,
+    },
     resultBannerTitle: { ...typography.subtitle, color: colors.success },
+    resultBannerTitleWarning: { color: colors.warning },
     resultBannerText: { ...typography.bodySm, color: colors.foreground },
     actionsRow: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.xs },
 
@@ -713,7 +812,6 @@ const useStyles = makeStyles((t) => {
     },
     overallLabel: { color: colors.mutedForeground, fontSize: 9 },
     overallScore: { ...typography.h2, color: colors.primary, lineHeight: 30 },
-    percent: { ...typography.h2, color: colors.primary },
     overallText: {
       ...typography.caption,
       color: colors.foreground,
