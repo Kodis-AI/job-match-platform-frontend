@@ -1,6 +1,7 @@
 import { createContext, useContext, useMemo, useState } from 'react';
 import { StyleSheet, useColorScheme } from 'react-native';
 
+import { setNotifyScheme } from '../utils/notify';
 import { palettes } from './colors';
 import { iconSize, layout, motion, radii, spacing, touch } from './spacing';
 import { fonts, typography } from './typography';
@@ -39,6 +40,8 @@ export function ThemeProvider({ children }) {
   const systemScheme = useColorScheme() === 'dark' ? 'dark' : 'light';
   const [appearance, setAppearance] = useState('system');
   const scheme = appearance === 'system' ? systemScheme : appearance;
+  // Las alertas (SweetAlert2 en web) viven fuera del árbol de React: se les avisa del modo.
+  setNotifyScheme(scheme);
   const theme = useMemo(
     () => ({ ...buildTheme(scheme), appearance, setAppearance }),
     [scheme, appearance],

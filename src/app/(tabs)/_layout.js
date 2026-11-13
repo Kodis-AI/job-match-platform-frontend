@@ -50,6 +50,12 @@ export default function TabLayout() {
       <Tabs
         screenOptions={({ route }) => ({
           headerShown: false,
+          // Transición suave al cambiar de pestaña / portal (por defecto es 'none' = corte brusco).
+          animation: 'fade',
+          // Fondo propio: el predeterminado de react-navigation es blanco y se ve como un
+          // destello mientras la pantalla nueva monta.
+          sceneStyle: { backgroundColor: colors.background },
+          transitionSpec: { animation: 'timing', config: { duration: 220 } },
           tabBarPosition: isDesktop ? 'left' : 'bottom',
           tabBarVariant: 'uikit',
           tabBarLabelPosition: isDesktop ? 'beside-icon' : 'below-icon',

@@ -7,7 +7,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 
 import { AuthProvider, useAuth } from '../context/AuthContext';
 import { ApiError } from '../lib/api/client';
-import { fontAssets, ThemeProvider } from '../theme';
+import { fontAssets, ThemeProvider, useTheme } from '../theme';
 
 SplashScreen.preventAutoHideAsync();
 
@@ -40,6 +40,7 @@ export default function RootLayout() {
 function RootNavigator() {
   const [fontsLoaded, fontError] = useFonts(fontAssets);
   const { isPending } = useAuth();
+  const { colors } = useTheme();
   const ready = (fontsLoaded || fontError) && !isPending;
 
   useEffect(() => {
@@ -52,5 +53,9 @@ function RootNavigator() {
     return null;
   }
 
-  return <Stack screenOptions={{ headerShown: false }} />;
+  return (
+    <Stack
+      screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.background } }}
+    />
+  );
 }

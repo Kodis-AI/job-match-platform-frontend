@@ -1,5 +1,13 @@
-import { useState } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, Text, View } from 'react-native';
+import { useEffect, useState } from 'react';
+import {
+  ActivityIndicator,
+  Animated,
+  Easing,
+  Pressable,
+  ScrollView,
+  Text,
+  View,
+} from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { router, usePathname } from 'expo-router';
@@ -141,11 +149,67 @@ function SessionControls({ compact }) {
   );
 }
 
+const MODE_OPTIONS = [
+  { value: 'reclutador', label: 'Portal Reclutador' },
+  { value: 'candidato', label: 'Portal Candidato' },
+];
+
+// Cada pantalla monta su propio selector, así que la pastilla recuerda dónde estaba en la
+// pantalla anterior y se desliza desde ahí hacia la opción nueva.
+let lastPortal = null;
+
 export function WorkspaceModeSwitcher({ compact = false }) {
   const styles = useStyles();
-  const { colors } = useTheme();
+  const { colors, motion } = useTheme();
   const { portal, setPortal } = usePortal();
   const { isAuthenticated } = useAuth();
+
+  const targetIndex = portal === 'candidato' ? 1 : 0;
+  // 0 = reclutador, 1 = candidato
+  // Si se monta tras un cambio de portal, la pastilla arranca en la opción anterior.
+  const [startsElsewhere] = useState(() => lastPortal !== null && lastPortal !== portal);
+  const [progress] = useState(
+    () => new Animated.Value(lastPortal ? (lastPortal === 'candidato' ? 1 : 0) : targetIndex),
+  );
+  const [layouts, setLayouts] = useState({});
+  const measured = MODE_OPTIONS.every((o) => layouts[o.value]);
+
+  useEffect(() => {
+    lastPortal = portal;
+    Animated.timing(progress, {
+      toValue: targetIndex,
+      duration: motion.slow,
+      easing: Easing.out(Easing.cubic),
+      useNativeDriver: false, // anima ancho y color, que no admiten driver nativo
+    }).start();
+  }, [portal, targetIndex, progress, motion.slow]);
+
+  const onOptionLayout = (value) => (event) => {
+    const { x, y, width, height } = event.nativeEvent.layout;
+    setLayouts((prev) => {
+      const old = prev[value];
+      if (old && old.x === x && old.y === y && old.width === width && old.height === height) {
+        return prev;
+      }
+      return { ...prev, [value]: { x, y, width, height } };
+    });
+  };
+
+  const pillStyle = measured
+    ? {
+        position: 'absolute',
+        top: layouts.reclutador.y,
+        height: layouts.reclutador.height,
+        left: progress.interpolate({
+          inputRange: [0, 1],
+          outputRange: [layouts.reclutador.x, layouts.candidato.x],
+        }),
+        width: progress.interpolate({
+          inputRange: [0, 1],
+          outputRange: [layouts.reclutador.width, layouts.candidato.width],
+        }),
+      }
+    : null;
 
   const selectView = (view) => {
     if (view === 'reclutador' && !isAuthenticated) {
@@ -164,33 +228,43 @@ export function WorkspaceModeSwitcher({ compact = false }) {
       accessibilityLabel="Cambiar espacio de trabajo"
       style={[styles.modeSwitcher, compact && styles.modeSwitcherCompact]}
     >
-      {[
-        { value: 'reclutador', label: 'Portal Reclutador' },
-        { value: 'candidato', label: 'Portal Candidato' },
-      ].map((option) => {
+      {pillStyle ? (
+        <Animated.View pointerEvents="none" style={[styles.modePill, pillStyle]} />
+      ) : null}
+      {MODE_OPTIONS.map((option, index) => {
         const selected = portal === option.value;
+        // El texto se tiñe al mismo ritmo que se mueve la pastilla.
+        const textColor = progress.interpolate({
+          inputRange: [0, 1],
+          outputRange:
+            index === 0
+              ? [colors.onPrimary, colors.mutedForeground]
+              : [colors.mutedForeground, colors.onPrimary],
+        });
         return (
           <Pressable
             key={option.value}
             accessibilityRole="radio"
             accessibilityState={{ checked: selected }}
             onPress={() => selectView(option.value)}
+            onLayout={onOptionLayout(option.value)}
             style={({ pressed }) => [
               styles.modeOption,
-              selected && styles.modeOptionSelected,
+              // Hasta medir las opciones se pinta el fondo estático para no parpadear.
+              !measured && !startsElsewhere && selected && styles.modeOptionSelected,
               compact && styles.modeOptionCompact,
               pressed && styles.pressed,
             ]}
           >
-            <Text
+            <Animated.Text
               style={[
                 styles.modeOptionText,
                 selected && styles.modeOptionTextSelected,
-                { color: selected ? colors.onPrimary : colors.mutedForeground },
+                { color: textColor },
               ]}
             >
               {option.label}
-            </Text>
+            </Animated.Text>
           </Pressable>
         );
       })}
@@ -249,6 +323,7 @@ const useStyles = makeStyles((t) => {
     },
     modeOptionCompact: { flex: 1, paddingHorizontal: spacing.xs },
     modeOptionSelected: { backgroundColor: colors.primary },
+    modePill: { borderRadius: radii.full, backgroundColor: colors.primary },
     modeOptionText: { ...typography.caption, color: colors.mutedForeground },
     modeOptionTextSelected: { ...typography.captionStrong, color: colors.onPrimary },
     brandMark: {

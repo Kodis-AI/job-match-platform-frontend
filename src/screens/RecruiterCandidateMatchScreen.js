@@ -42,8 +42,8 @@ const UNANALYZED_STATES = {
 async function copyToClipboard(text, confirmation) {
   // On web the promise resolves to false when the browser refuses the copy.
   const copied = await Clipboard.setStringAsync(text);
-  if (copied) notify(confirmation, 'El texto ya está en tu portapapeles.');
-  else notify('No se pudo copiar', 'El navegador no permitió el acceso al portapapeles.');
+  if (copied) notify(confirmation, 'El texto ya está en tu portapapeles.', 'success');
+  else notify('No se pudo copiar', 'El navegador no permitió el acceso al portapapeles.', 'error');
 }
 
 export default function RecruiterCandidateMatchScreen() {
@@ -190,6 +190,7 @@ function EvaluationReport({ application, eyebrow }) {
     notify(
       'Descarga disponible en la web',
       'La app móvil todavía no puede descargar el archivo original. Descárgalo desde la versión web.',
+      'info',
     );
   };
 

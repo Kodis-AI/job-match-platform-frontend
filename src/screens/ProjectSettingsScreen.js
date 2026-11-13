@@ -194,6 +194,7 @@ function CalibrationEditor({ settings, draft, onDraftChange, saveSettings, job, 
         notify(
           'Parámetros guardados',
           'Las ponderaciones y el corte ya se aplican a tus rankings. Las políticas de sesgo y de brechas se aplicarán a los análisis que inicies a partir de ahora.',
+          'success',
         );
       },
     });

@@ -19,6 +19,7 @@ import {
   Suggestion,
 } from '../components';
 import { WorkspaceModeSwitcher } from '../components/RecruiterPage';
+import { useAuth } from '../context/AuthContext';
 import { pickCvFiles } from '../lib/api/files';
 import { useCandidateAnalysis } from '../lib/api/queries';
 import { makeStyles, useTheme } from '../theme';
@@ -61,6 +62,7 @@ export default function MatchScreen() {
   const { colors } = useTheme();
   const insets = useSafeAreaInsets();
   const { isCompact, isWide } = useWorkspaceLayout();
+  const { isAuthenticated } = useAuth();
 
   const scrollRef = useRef(null);
   const formY = useRef(0);
@@ -136,7 +138,8 @@ export default function MatchScreen() {
                 />
               )}
             </View>
-            <WorkspaceModeSwitcher compact={isCompact} />
+            {/* Los candidatos sin cuenta no ven el cambio de portal. */}
+            {isAuthenticated ? <WorkspaceModeSwitcher compact={isCompact} /> : null}
             <View style={styles.headerActions}>
               {!isCompact && (
                 <Button
@@ -385,9 +388,9 @@ function MatchResults({ report, onLayout }) {
     // On web the promise resolves to false when the browser refuses the write.
     const copied = await Clipboard.setStringAsync(text);
     if (copied) {
-      notify('Sugerencias copiadas', 'El plan de optimización está en tu portapapeles.');
+      notify('Sugerencias copiadas', 'El plan de optimización está en tu portapapeles.', 'success');
     } else {
-      notify('No se pudo copiar', 'Tu navegador no permitió el acceso al portapapeles.');
+      notify('No se pudo copiar', 'Tu navegador no permitió el acceso al portapapeles.', 'error');
     }
   };
 
