@@ -4,11 +4,12 @@ import { StatusBar } from 'expo-status-bar';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { router, usePathname } from 'expo-router';
 
-import { Badge, Icon } from './index';
+import { Icon } from './index';
 import { useAuth } from '../context/AuthContext';
 import { usePortal } from '../context/PortalContext';
 import { makeStyles, useTheme } from '../theme';
 import { useWorkspaceLayout } from '../theme/useWorkspaceLayout';
+import { getInitials } from '../utils/format';
 
 export function RecruiterPage({ eyebrow, title, description, action, children }) {
   const styles = useStyles();
@@ -23,6 +24,7 @@ export function RecruiterPage({ eyebrow, title, description, action, children })
       <ScrollView
         contentContainerStyle={[styles.scrollContent, { paddingBottom: insets.bottom + 24 }]}
         showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
       >
         <View style={[styles.topBar, { paddingTop: insets.top + 12 }]}>
           <View style={[styles.topBarInner, isCompact && styles.topBarCompact]}>
@@ -46,9 +48,6 @@ export function RecruiterPage({ eyebrow, title, description, action, children })
             {!isSettingsRoute ? <WorkspaceModeSwitcher compact={isCompact} /> : null}
             {!isCompact ? (
               <View style={styles.profileGroup}>
-                {!isSettingsRoute && isWide && (
-                  <Badge label="NLP Pipeline · Demo" tone="success" icon="circle-check" />
-                )}
                 <SessionControls />
               </View>
             ) : null}
@@ -101,12 +100,6 @@ function SessionControls({ compact }) {
     );
   }
 
-  const initials = (user.name || user.email)
-    .split(/\s+/)
-    .slice(0, 2)
-    .map((part) => part[0]?.toUpperCase())
-    .join('');
-
   const handleSignOut = async () => {
     setSigningOut(true);
     await signOut();
@@ -117,7 +110,7 @@ function SessionControls({ compact }) {
   return (
     <View style={styles.session}>
       <View style={styles.avatar} accessibilityLabel={`Sesión iniciada como ${user.name}`} accessible>
-        <Text style={styles.avatarText}>{initials}</Text>
+        <Text style={styles.avatarText}>{getInitials(user.name)}</Text>
       </View>
       {!compact ? (
         <View style={styles.sessionCopy}>

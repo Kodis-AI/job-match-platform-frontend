@@ -6,13 +6,7 @@ import { Button, FormAlert, TextField } from '../../components';
 import { AuthLayout } from '../../components/auth/AuthLayout';
 import { AuthLink } from '../../components/auth/AuthLink';
 import { useAuth } from '../../context/AuthContext';
-import {
-  DEMO_CREDENTIALS,
-  getAuthErrorMessage,
-  isMockAuth,
-  validateEmail,
-  validatePassword,
-} from '../../lib/auth';
+import { getAuthErrorMessage, validateEmail, validatePassword } from '../../lib/auth';
 import { resolveRedirect } from '../../lib/auth/redirect';
 import { makeStyles } from '../../theme';
 import { comingSoon } from '../../utils/notify';
@@ -76,12 +70,6 @@ export default function SignInScreen() {
     // Con éxito, la sesión cambia y <Redirect> lleva a `target`.
   };
 
-  const fillDemo = () => {
-    setValues({ ...DEMO_CREDENTIALS });
-    setErrors({});
-    setServerError(null);
-  };
-
   return (
     <AuthLayout
       overline="PORTAL RECLUTADOR"
@@ -99,16 +87,6 @@ export default function SignInScreen() {
         </View>
       }
     >
-      {isMockAuth ? (
-        <FormAlert
-          tone="info"
-          title="Modo demo"
-          message={`Usa ${DEMO_CREDENTIALS.email} · ${DEMO_CREDENTIALS.password} o crea una cuenta nueva.`}
-        >
-          <AuthLink label="Rellenar con la cuenta demo" onPress={fillDemo} style={styles.demoLink} />
-        </FormAlert>
-      ) : null}
-
       {serverError ? (
         <FormAlert tone="error" title="No pudimos iniciar sesión" message={serverError} />
       ) : null}
@@ -191,7 +169,6 @@ const useStyles = makeStyles((t) => ({
   fields: { gap: t.spacing.md },
   passwordGroup: { gap: t.spacing.xxs },
   forgot: { alignSelf: 'flex-end' },
-  demoLink: { alignSelf: 'flex-start', marginLeft: -t.spacing.xxs },
   divider: { flexDirection: 'row', alignItems: 'center', gap: t.spacing.sm },
   dividerLine: { flex: 1, height: 1, backgroundColor: t.colors.border },
   dividerText: { ...t.typography.caption, color: t.colors.mutedForeground },

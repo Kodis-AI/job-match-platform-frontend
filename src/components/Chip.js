@@ -16,7 +16,9 @@ export function Chip({ label, selected = false, onPress }) {
         pressed && styles.pressed,
       ]}
     >
-      <Text style={[styles.text, selected && styles.textSelected]}>{label}</Text>
+      <Text numberOfLines={1} style={[styles.text, selected && styles.textSelected]}>
+        {label}
+      </Text>
     </Pressable>
   );
 }
@@ -24,6 +26,7 @@ export function Chip({ label, selected = false, onPress }) {
 const useStyles = makeStyles((t) => ({
   chip: {
     minHeight: t.touch.min,
+    maxWidth: '100%',
     justifyContent: 'center',
     paddingHorizontal: t.spacing.md,
     borderRadius: t.radii.full,

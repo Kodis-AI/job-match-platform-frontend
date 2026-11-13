@@ -1,52 +1,57 @@
-import { Pressable, Text, View } from 'react-native';
+import { ActivityIndicator, Pressable, Text, View } from 'react-native';
 import { router } from 'expo-router';
 
-import { Badge, Button, Icon, SectionHeading } from '../components';
+import { Badge, Button, FormAlert, Icon, SectionHeading } from '../components';
 import { RecruiterPage } from '../components/RecruiterPage';
+import { useAuth } from '../context/AuthContext';
+import { useDashboard } from '../lib/api/queries';
+import { getApplicationStatus } from '../lib/applicationStatus';
 import { makeStyles, useTheme } from '../theme';
 import { useWorkspaceLayout } from '../theme/useWorkspaceLayout';
-import { comingSoon } from '../utils/notify';
+import { countLabel, formatRelativeTime, getInitials } from '../utils/format';
 
-const METRICS = [
-  { label: 'Vacantes activas', value: '12', delta: '+2 este mes', icon: 'briefcase-business' },
-  { label: 'Candidatos activos', value: '84', delta: '18 nuevos', icon: 'users-round' },
-  { label: 'Entrevistas', value: '09', delta: '4 esta semana', icon: 'calendar-days' },
-  { label: 'Tiempo de cobertura', value: '18 d', delta: '−3 días', icon: 'clock-3' },
-];
+const ACTIVITY_TYPES = {
+  cv_received: { title: 'Nuevo CV recibido', icon: 'file-plus-2' },
+  analysis_completed: { title: 'Análisis completado', icon: 'sparkles' },
+  interview_approved: { title: 'Aprobado para entrevista', icon: 'calendar-check' },
+  candidate_rejected: { title: 'Candidato descartado', icon: 'user-x' },
+};
 
-const RECENT_CVS = [
-  { name: 'Sofía Ramírez', role: 'Product Designer', date: 'Hoy, 10:42', status: 'Nuevo', initials: 'SR' },
-  { name: 'Diego Torres', role: 'Frontend Engineer', date: 'Hoy, 09:18', status: 'En revisión', initials: 'DT' },
-  { name: 'Lucía Herrera', role: 'Data Analyst', date: 'Ayer, 16:05', status: 'Preselección', initials: 'LH' },
-];
-
-const ACTIVITY = [
-  { title: 'Entrevista agendada', detail: 'Mateo Silva · Backend Engineer', time: 'Hace 24 min', icon: 'calendar-check' },
-  { title: 'Nuevo CV recibido', detail: 'Valentina Ríos · Product Designer', time: 'Hace 1 h', icon: 'file-plus-2' },
-  { title: 'Candidata preseleccionada', detail: 'Lucía Herrera · Data Analyst', time: 'Ayer', icon: 'circle-check' },
-];
+const openReview = (id) => router.push({ pathname: '/review', params: { id } });
 
 export default function RecruiterPortalScreen() {
   const styles = useStyles();
   const { colors } = useTheme();
-  const { isWide, isCompact } = useWorkspaceLayout();
+  const { user } = useAuth();
+  const { data: dashboard, isPending, error } = useDashboard();
+
+  const firstName = user.name.trim().split(/\s+/)[0];
+  const today = new Date().toLocaleDateString('es', {
+    weekday: 'long',
+    day: 'numeric',
+    month: 'long',
+  });
 
   return (
     <RecruiterPage
       eyebrow="PANEL DEL RECLUTADOR"
-      title="Hola, Elena"
+      title={`Hola, ${firstName}`}
       description="Aquí tienes un resumen de tu equipo y los últimos movimientos de talento."
       action={
         <Button
           label="Crear vacante"
           iconLeft="plus"
-          onPress={() => comingSoon('Crear vacante')}
+          onPress={() => router.push({ pathname: '/pipeline', params: { create: '1' } })}
         />
       }
     >
       <View style={styles.welcomeCard}>
         <View style={styles.welcomeCopy}>
-          <Badge label="Martes, 11 de noviembre" tone="info" icon="calendar-days" />
+          <Badge
+            label={today[0].toUpperCase() + today.slice(1)}
+            tone="info"
+            icon="calendar-days"
+          />
           <Text style={styles.welcomeTitle}>Tu próximo gran talento está más cerca.</Text>
           <Text style={styles.welcomeDescription}>
             Revisa el avance de tus procesos y mantén cada candidatura en movimiento.
@@ -57,8 +62,64 @@ export default function RecruiterPortalScreen() {
         </View>
       </View>
 
+      {isPending ? (
+        <ActivityIndicator
+          size="large"
+          color={colors.primary}
+          accessibilityLabel="Cargando el panel"
+          style={styles.loader}
+        />
+      ) : null}
+      {error ? (
+        <FormAlert
+          tone="error"
+          title="No pudimos cargar tu panel"
+          message={error.message}
+          style={styles.alert}
+        />
+      ) : null}
+      {dashboard ? <DashboardSections dashboard={dashboard} /> : null}
+    </RecruiterPage>
+  );
+}
+
+function DashboardSections({ dashboard }) {
+  const styles = useStyles();
+  const { colors } = useTheme();
+  const { isWide, isCompact } = useWorkspaceLayout();
+  const { activity, recent_applications: recentApplications } = dashboard;
+
+  const metrics = [
+    {
+      label: 'Vacantes activas',
+      value: dashboard.jobs_total,
+      delta: `+${dashboard.jobs_this_month} este mes`,
+      icon: 'briefcase-business',
+    },
+    {
+      label: 'Candidatos',
+      value: dashboard.candidates_total,
+      delta: `${countLabel(dashboard.candidates_this_week, 'nuevo', 'nuevos')} esta semana`,
+      icon: 'users-round',
+    },
+    {
+      label: 'Entrevistas',
+      value: dashboard.interviews_total,
+      delta: `${dashboard.interviews_this_week} esta semana`,
+      icon: 'calendar-days',
+    },
+    {
+      label: 'Preseleccionados',
+      value: dashboard.shortlisted_total,
+      delta: 'Superan el corte',
+      icon: 'list-checks',
+    },
+  ];
+
+  return (
+    <>
       <View style={[styles.metricsGrid, isWide && styles.metricsGridWide]}>
-        {METRICS.map((metric) => (
+        {metrics.map((metric) => (
           <View
             key={metric.label}
             style={[
@@ -67,11 +128,8 @@ export default function RecruiterPortalScreen() {
               isWide && styles.metricCardWide,
             ]}
           >
-            <View style={styles.metricTop}>
-              <View style={styles.metricIcon}>
-                <Icon name={metric.icon} size="md" color={colors.secondaryText} />
-              </View>
-              <Icon name="arrow-up-right" size="sm" color={colors.success} />
+            <View style={styles.metricIcon}>
+              <Icon name={metric.icon} size="md" color={colors.secondaryText} />
             </View>
             <Text style={styles.metricValue}>{metric.value}</Text>
             <Text style={styles.metricLabel}>{metric.label}</Text>
@@ -88,28 +146,41 @@ export default function RecruiterPortalScreen() {
             description="Lo último que pasa en tus procesos."
           />
           <View style={styles.panel}>
-            {ACTIVITY.map((item, index) => (
-              <Pressable
-                key={item.title}
-                accessibilityRole="button"
-                accessibilityLabel={`${item.title}: ${item.detail}`}
-                onPress={() => comingSoon('Ver actividad')}
-                style={({ pressed }) => [
-                  styles.activityRow,
-                  index < ACTIVITY.length - 1 && styles.divider,
-                  pressed && styles.pressed,
-                ]}
-              >
-                <View style={styles.activityIcon}>
-                  <Icon name={item.icon} size="md" color={colors.secondaryText} />
-                </View>
-                <View style={styles.rowCopy}>
-                  <Text style={styles.rowTitle}>{item.title}</Text>
-                  <Text style={styles.rowDetail}>{item.detail}</Text>
-                </View>
-                <Text style={styles.rowTime}>{item.time}</Text>
-              </Pressable>
-            ))}
+            {activity.map((item, index) => {
+              const { title, icon } = ACTIVITY_TYPES[item.type];
+              const detail = `${item.candidate_name ?? item.cv_filename} · ${item.job_title}`;
+              return (
+                <Pressable
+                  key={`${item.type}-${item.application_id}`}
+                  accessibilityRole="button"
+                  accessibilityLabel={`${title}: ${detail}`}
+                  onPress={() => openReview(item.application_id)}
+                  style={({ pressed }) => [
+                    styles.activityRow,
+                    index < activity.length - 1 && styles.divider,
+                    pressed && styles.pressed,
+                  ]}
+                >
+                  <View style={styles.activityIcon}>
+                    <Icon name={icon} size="md" color={colors.secondaryText} />
+                  </View>
+                  <View style={styles.rowCopy}>
+                    <Text style={styles.rowTitle}>{title}</Text>
+                    <Text style={styles.rowDetail}>{detail}</Text>
+                  </View>
+                  <Text style={styles.rowTime}>{formatRelativeTime(item.at)}</Text>
+                </Pressable>
+              );
+            })}
+            {activity.length === 0 ? (
+              <View style={styles.emptyState}>
+                <Icon name="activity" size="lg" color={colors.mutedForeground} />
+                <Text style={styles.emptyTitle}>Aún no hay movimientos</Text>
+                <Text style={styles.emptyText}>
+                  Aquí verás los CVs recibidos, los análisis y tus decisiones sobre cada candidato.
+                </Text>
+              </View>
+            ) : null}
           </View>
         </View>
 
@@ -123,39 +194,54 @@ export default function RecruiterPortalScreen() {
               label="Ver todos"
               variant="ghost"
               iconRight="arrow-right"
-              onPress={() => comingSoon('Historial de CVs')}
+              onPress={() => router.push('/pipeline')}
             />
           </SectionHeading>
           <View style={styles.panel}>
-            {RECENT_CVS.map((candidate, index) => (
-              <View
-                key={candidate.name}
-                style={[styles.candidateRow, index < RECENT_CVS.length - 1 && styles.divider]}
-              >
-                <View style={styles.candidateAvatar}>
-                  <Text style={styles.candidateInitials}>{candidate.initials}</Text>
-                </View>
-                <View style={styles.rowCopy}>
-                  <Text style={styles.rowTitle}>{candidate.name}</Text>
-                  <Text style={styles.rowDetail}>{candidate.role} · {candidate.date}</Text>
-                </View>
-                {!isCompact && (
-                  <Badge
-                    label={candidate.status}
-                    tone={candidate.status === 'Nuevo' ? 'info' : 'success'}
-                  />
-                )}
-                <Pressable
-                  accessibilityRole="button"
-                  accessibilityLabel={`Abrir CV de ${candidate.name}`}
-                  onPress={() => router.push('/review')}
-                  hitSlop={8}
-                  style={styles.chevron}
+            {recentApplications.map((application, index) => {
+              const name = application.candidate_name ?? application.cv_filename;
+              const status = getApplicationStatus(application);
+              return (
+                <View
+                  key={application.id}
+                  style={[
+                    styles.candidateRow,
+                    index < recentApplications.length - 1 && styles.divider,
+                  ]}
                 >
-                  <Icon name="chevron-right" size="sm" color={colors.mutedForeground} />
-                </Pressable>
+                  <View style={styles.candidateAvatar}>
+                    <Text style={styles.candidateInitials}>
+                      {application.candidate_name ? getInitials(application.candidate_name) : 'CV'}
+                    </Text>
+                  </View>
+                  <View style={styles.rowCopy}>
+                    <Text style={styles.rowTitle}>{name}</Text>
+                    <Text style={styles.rowDetail}>
+                      {application.job_title} · {formatRelativeTime(application.created_at)}
+                    </Text>
+                  </View>
+                  {!isCompact && <Badge label={status.label} tone={status.tone} />}
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel={`Abrir CV de ${name}`}
+                    onPress={() => openReview(application.id)}
+                    hitSlop={8}
+                    style={styles.chevron}
+                  >
+                    <Icon name="chevron-right" size="sm" color={colors.mutedForeground} />
+                  </Pressable>
+                </View>
+              );
+            })}
+            {recentApplications.length === 0 ? (
+              <View style={styles.emptyState}>
+                <Icon name="inbox" size="lg" color={colors.mutedForeground} />
+                <Text style={styles.emptyTitle}>Aún no has recibido CVs</Text>
+                <Text style={styles.emptyText}>
+                  Sube currículums a una vacante desde el pipeline para empezar a evaluarlos.
+                </Text>
               </View>
-            ))}
+            ) : null}
           </View>
         </View>
       </View>
@@ -163,8 +249,13 @@ export default function RecruiterPortalScreen() {
       <View style={styles.pipelineCard}>
         <View style={styles.pipelineCopy}>
           <Text style={styles.pipelineOverline}>TUS PROCESOS</Text>
-          <Text style={styles.pipelineTitle}>12 vacantes activas</Text>
-          <Text style={styles.pipelineText}>24 candidatos avanzaron a la siguiente etapa esta semana.</Text>
+          <Text style={styles.pipelineTitle}>
+            {countLabel(dashboard.jobs_total, 'vacante activa', 'vacantes activas')}
+          </Text>
+          <Text style={styles.pipelineText}>
+            {countLabel(dashboard.interviews_this_week, 'candidato avanzó', 'candidatos avanzaron')}{' '}
+            a entrevista esta semana.
+          </Text>
         </View>
         <Button
           label="Ir al pipeline"
@@ -173,7 +264,7 @@ export default function RecruiterPortalScreen() {
           onPress={() => router.push('/pipeline')}
         />
       </View>
-    </RecruiterPage>
+    </>
   );
 }
 
@@ -201,6 +292,8 @@ const useStyles = makeStyles((t) => {
       alignItems: 'center',
       justifyContent: 'center',
     },
+    loader: { paddingVertical: spacing.xxl },
+    alert: { marginBottom: spacing.lg },
     metricsGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm, marginBottom: spacing.xl },
     metricsGridWide: { flexWrap: 'wrap' },
     metricCard: {
@@ -215,7 +308,6 @@ const useStyles = makeStyles((t) => {
     },
     metricCardCompact: { flexBasis: '46%' },
     metricCardWide: { flexBasis: '23%' },
-    metricTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
     metricIcon: {
       width: 36,
       height: 36,
@@ -273,6 +365,9 @@ const useStyles = makeStyles((t) => {
     rowTime: { ...typography.caption, color: colors.mutedForeground },
     chevron: { minWidth: 24, minHeight: 40, alignItems: 'center', justifyContent: 'center' },
     pressed: { opacity: 0.75 },
+    emptyState: { alignItems: 'center', gap: spacing.xs, paddingVertical: spacing.lg },
+    emptyTitle: { ...typography.bodyStrong, color: colors.foreground, textAlign: 'center' },
+    emptyText: { ...typography.caption, color: colors.mutedForeground, textAlign: 'center' },
     pipelineCard: {
       marginTop: spacing.xl,
       padding: spacing.lg,
