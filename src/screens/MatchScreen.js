@@ -138,7 +138,7 @@ export default function MatchScreen() {
                 />
               )}
             </View>
-            {/* Los candidatos sin cuenta no ven el cambio de portal. */}
+            {/* Los candidatos sin cuenta no ven el cambio de portal. QA */}
             {isAuthenticated ? <WorkspaceModeSwitcher compact={isCompact} /> : null}
             <View style={styles.headerActions}>
               {!isCompact && (
