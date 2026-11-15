@@ -12,6 +12,7 @@ import {
   TextField,
 } from '../components';
 import { RecruiterPage } from '../components/RecruiterPage';
+import { RateLimitError } from '../lib/api/client';
 import { pickCvFiles } from '../lib/api/files';
 import {
   useCreateJob,
@@ -23,6 +24,7 @@ import {
   useUploadApplications,
 } from '../lib/api/queries';
 import { getApplicationStatus } from '../lib/applicationStatus';
+import { useCooldown } from '../lib/useCooldown';
 import { makeStyles, useTheme } from '../theme';
 import { useWorkspaceLayout } from '../theme/useWorkspaceLayout';
 import { countLabel, getCandidateLabel, getInitials } from '../utils/format';
@@ -33,6 +35,9 @@ const PAGE_HEADER = {
   description:
     'Elige una vacante, sube sus currículums y deja que la IA los analice y ordene por compatibilidad.',
 };
+
+// Pausa tras un 429 (el backend no indica cuánto esperar).
+const RATE_LIMIT_COOLDOWN_SECONDS = 45;
 
 const WORK_MODE_LABELS = { remote: 'Remoto', hybrid: 'Híbrido', onsite: 'Presencial' };
 
@@ -160,6 +165,8 @@ function JobWorkspace({ jobs, jobsError, selectedJob, onSelectJob, jobForm, onOp
   const isIntakeWide = contentWidth >= layout.breakpoints.xwide;
   const { data: job, isPending, error } = useJob(selectedJob.id);
   const startAnalysis = useStartAnalysis(selectedJob.id);
+  // 429: no se encoló nada. El botón se bloquea un tiempo fijo y no se toca el estado local.
+  const cooldown = useCooldown(RATE_LIMIT_COOLDOWN_SECONDS);
   // The mutation outlives a job switch, so its error is only shown on the job it was started for.
   const [analysisJobId, setAnalysisJobId] = useState(null);
   // Kept above the per-job ranking so the filters survive a job switch.
@@ -171,10 +178,18 @@ function JobWorkspace({ jobs, jobsError, selectedJob, onSelectJob, jobForm, onOp
     iconLeft: 'list-filter',
     iconRight: analysisBusy ? undefined : 'arrow-right',
     loading: analysisBusy,
-    disabled: job === undefined || analyzing || job.stats.pending + job.stats.failed === 0,
+    disabled:
+      job === undefined ||
+      analyzing ||
+      job.stats.pending + job.stats.failed === 0 ||
+      cooldown.remaining > 0,
     onPress: () => {
       setAnalysisJobId(selectedJob.id);
-      startAnalysis.mutate();
+      startAnalysis.mutate(undefined, {
+        onError: (error) => {
+          if (error instanceof RateLimitError) cooldown.start();
+        },
+      });
     },
   };
   const processLabel = isCompact
@@ -280,7 +295,13 @@ function JobWorkspace({ jobs, jobsError, selectedJob, onSelectJob, jobForm, onOp
           ) : null}
           <Button
             {...analysisButton}
-            label={analysisBusy ? 'Analizando…' : processLabel}
+            label={
+              analysisBusy
+                ? 'Analizando…'
+                : cooldown.remaining > 0
+                  ? `Vuelve a intentarlo en ${cooldown.remaining} s`
+                  : processLabel
+            }
             variant="accent"
             size="lg"
             style={styles.processButton}

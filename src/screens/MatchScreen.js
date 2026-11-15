@@ -21,7 +21,9 @@ import {
 import { WorkspaceModeSwitcher } from '../components/RecruiterPage';
 import { useAuth } from '../context/AuthContext';
 import { pickCvFiles } from '../lib/api/files';
+import { RateLimitError } from '../lib/api/client';
 import { useCandidateAnalysis } from '../lib/api/queries';
+import { useCooldown } from '../lib/useCooldown';
 import { makeStyles, useTheme } from '../theme';
 import { useWorkspaceLayout } from '../theme/useWorkspaceLayout';
 import { formatFileSize } from '../utils/format';
@@ -57,6 +59,9 @@ const DIMENSION_PRESENTATION = {
 
 const NO_MISSING_KEYWORDS = 'Tu currículum ya contiene los términos clave de la vacante.';
 
+// Pausa tras un 429 (el backend no indica cuánto esperar).
+const RATE_LIMIT_COOLDOWN_SECONDS = 45;
+
 export default function MatchScreen() {
   const styles = useStyles();
   const { colors } = useTheme();
@@ -72,6 +77,8 @@ export default function MatchScreen() {
   const [activeSample, setActiveSample] = useState(null);
 
   const analysis = useCandidateAnalysis();
+  // 429: sin Retry-After, así que se bloquea el botón un tiempo fijo. El CV y el texto no se tocan.
+  const cooldown = useCooldown(RATE_LIMIT_COOLDOWN_SECONDS);
   const report = analysis.data;
   const trimmedDescription = jobDescription.trim();
   const isDescriptionTooShort = trimmedDescription.length < MIN_JOB_DESCRIPTION_LENGTH;
@@ -100,6 +107,9 @@ export default function MatchScreen() {
         onSuccess: () => {
           // The results mount after this callback runs, so their onLayout does the scrolling.
           scrollToResultsOnLayout.current = true;
+        },
+        onError: (error) => {
+          if (error instanceof RateLimitError) cooldown.start();
         },
       },
     );
@@ -284,12 +294,16 @@ export default function MatchScreen() {
           </View>
 
           <Button
-            label="Evaluar compatibilidad con IA"
+            label={
+              cooldown.remaining > 0
+                ? `Vuelve a intentarlo en ${cooldown.remaining} s`
+                : 'Evaluar compatibilidad con IA'
+            }
             variant="accent"
             size="lg"
             iconLeft="sparkles"
             iconRight="arrow-right"
-            disabled={!cv || isDescriptionTooShort}
+            disabled={!cv || isDescriptionTooShort || cooldown.remaining > 0}
             loading={analysis.isPending}
             onPress={evaluate}
             style={styles.evaluateButton}

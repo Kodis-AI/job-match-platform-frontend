@@ -17,6 +17,21 @@ export class ApiError extends Error {
   }
 }
 
+/**
+ * HTTP 429: the API rate-limits the two AI endpoints. It is not a 401 (the session is fine)
+ * and carries no Retry-After, so the screens apply their own fixed cooldown.
+ */
+export class RateLimitError extends ApiError {
+  constructor(options) {
+    super(
+      429,
+      'Has hecho demasiados análisis seguidos. Espera un momento e inténtalo de nuevo.',
+      options,
+    );
+    this.name = 'RateLimitError';
+  }
+}
+
 let cachedToken = null;
 
 /** Drop the token when the user changes: the JWT carries the previous identity. */
@@ -59,6 +74,8 @@ async function request(path, { method, json, formData, authenticated }) {
   }
 
   if (!response.ok) {
+    // Checked before reading the body: the raw detail is never shown for a rate limit.
+    if (response.status === 429) throw new RateLimitError();
     const { detail } = await response.json();
     // FastAPI validation errors carry a list of issues instead of a message.
     throw new ApiError(
